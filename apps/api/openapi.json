@@ -1,0 +1,365 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Script Assistant API",
+    "description": "Generates customer segments and ready-to-film UGC scripts using Gemini on Vertex AI.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Health Check",
+        "description": "Health check endpoint for Cloud Run and monitoring probes.",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/generate": {
+      "post": {
+        "tags": [
+          "Script Generation"
+        ],
+        "summary": "Generate customer segments and 3 UGC scripts from product details and image",
+        "description": "Pipeline:\n1. Authenticate request using X-API-Key header.\n2. Validate input constraints (market length, image mime type, file size).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment with assigned hook styles.\n5. Return unified facts, segments, and scripts.",
+        "operationId": "generate_generate_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_generate_generate_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_generate_generate_post": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Detailed product description"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market country or region (e.g., 'Bangladesh')"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Desired script language: 'en' for English or 'bn' for Bangla"
+          },
+          "image": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Image",
+            "description": "Product image file (JPEG, PNG, or WebP, max 5 MB)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "category",
+          "market",
+          "language",
+          "image"
+        ],
+        "title": "Body_generate_generate_post"
+      },
+      "GenerateResponse": {
+        "properties": {
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Facts",
+            "description": "5 to 8 verifiable product facts extracted from image and description"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/Segment"
+            },
+            "type": "array",
+            "title": "Segments",
+            "description": "The 3 customer segments identified for the product"
+          },
+          "scripts": {
+            "items": {
+              "$ref": "#/components/schemas/Script"
+            },
+            "type": "array",
+            "title": "Scripts",
+            "description": "The 3 customized scripts, each targeting one of the customer segments"
+          }
+        },
+        "type": "object",
+        "required": [
+          "facts",
+          "segments",
+          "scripts"
+        ],
+        "title": "GenerateResponse",
+        "description": "The top-level response payload returned by POST /generate."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Line": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "1-based sequential line index used for referencing in rationale reasons"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Role of this line in the video structure: 'hook' (0-3s), 'concept' (body), or 'cta' (action)"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Spoken dialogue or voiceover text meant to be delivered naturally on camera"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text"
+        ],
+        "title": "Line",
+        "description": "A single spoken line or beat within a UGC video script."
+      },
+      "Reason": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Short name of the performance marketing technique (e.g., 'Curiosity Gap Hook', 'Direct Objection Handling')"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "Explanation of why this technique specifically resonates with this target segment"
+          },
+          "line_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Line Ids",
+            "description": "List of 1-based line IDs from the script that demonstrate this technique"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "why",
+          "line_ids"
+        ],
+        "title": "Reason",
+        "description": "Performance rationale explaining why a specific technique was incorporated into the script."
+      },
+      "Script": {
+        "properties": {
+          "segment": {
+            "type": "string",
+            "title": "Segment",
+            "description": "Name of the customer segment this script is customized for"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/Line"
+            },
+            "type": "array",
+            "title": "Lines",
+            "description": "Ordered sequence of script lines structured as hook, concept, and cta"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/Reason"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "description": "Exactly 3 reasons explaining why the script is constructed this way"
+          }
+        },
+        "type": "object",
+        "required": [
+          "segment",
+          "lines",
+          "reasons"
+        ],
+        "title": "Script",
+        "description": "Complete ready-to-film short-form video ad script for a specific customer segment."
+      },
+      "Segment": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Clear, descriptive title for this customer segment (e.g., 'Exhausted Working Parents')"
+          },
+          "who": {
+            "type": "string",
+            "title": "Who",
+            "description": "Demographics, daily context, and life situation of this audience persona"
+          },
+          "pain_point": {
+            "type": "string",
+            "title": "Pain Point",
+            "description": "Core frustration, anxiety, or unmet desire expressed in their own natural words"
+          },
+          "platforms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Platforms",
+            "description": "Short-form platforms where this segment is most active (e.g., ['TikTok', 'Instagram Reels', 'YouTube Shorts'])"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "who",
+          "pain_point",
+          "platforms"
+        ],
+        "title": "Segment",
+        "description": "Represents a specific target audience / customer segment."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

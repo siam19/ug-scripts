@@ -9,10 +9,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "gen": "openapi-typescript http://127.0.0.1:8000/openapi.json -o ./src/schema.d.ts"
+    "dump:schema": "sh -c 'cd ../../apps/api && .venv/bin/python3 -c \"import sys, json; sys.path.insert(0, \\\".\\\"); from main import app; open(\\\"openapi.json\\\", \\\"w\\\").write(json.dumps(app.openapi(), indent=2))\"'",
+    "gen": "bun run dump:schema && bunx openapi-typescript ../../apps/api/openapi.json -o ./src/schema.d.ts"
   },
   "devDependencies": {
     "openapi-typescript": "^7.13.0",
-    "typescript": "~7.0.2"
+    "typescript": "5.8.2"
   }
 }

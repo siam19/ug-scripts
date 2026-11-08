@@ -1,34 +1,13 @@
-// API types generated or derived from FastAPI OpenAPI schema
+/**
+ * Re-exports strongly typed schemas generated from the FastAPI OpenAPI specification.
+ */
+import type { components, paths } from './schema.d.ts';
 
-export type LineKind = 'hook' | 'concept' | 'cta';
+export type GenerateResponse = components['schemas']['GenerateResponse'];
+export type Segment = components['schemas']['Segment'];
+export type Script = components['schemas']['Script'];
+export type Line = components['schemas']['Line'];
+export type Reason = components['schemas']['Reason'];
+export type LineKind = components['schemas']['Line']['kind'];
 
-export interface Line {
-  id: number;
-  kind: LineKind;
-  text: string;
-}
-
-export interface Reason {
-  title: string;
-  why: string;
-  line_ids: number[];
-}
-
-export interface Script {
-  segment: string;
-  lines: Line[];
-  reasons: Reason[];
-}
-
-export interface Segment {
-  name: string;
-  who: string;
-  pain_point: string;
-  platforms: string[];
-}
-
-export interface GenerateResponse {
-  facts: string[];
-  segments: Segment[];
-  scripts: Script[];
-}
+export type { components, paths };
