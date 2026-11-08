@@ -1,4 +1,4 @@
-# Script Assistant (AI UGC Script Writer)
+# UG-Scripts (AI UGC Script Writer)
 
 Script Assistant is an AI-powered UGC (User-Generated Content) video ad script generator inspired by platforms like Billo. Given a single product photo and basic product information, it generates three distinct, phone-ready creator scripts tailored to auto-generated customer segments, backed by verifiable packaging facts and psychological reasoning.
 
