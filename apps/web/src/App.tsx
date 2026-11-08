@@ -1,122 +1,83 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+// apps/web/src/App.tsx
+import { useRef, useState } from 'react';
+import './App.css';
+import { ProductForm } from './components/ProductForm';
+import { LoadingState } from './components/LoadingState';
+import { ResultsView } from './components/ResultsView';
+import { ErrorBanner } from './components/ErrorBanner';
+import { useGenerateScript } from './hooks/useGenerateScript';
+import { INITIAL_VALUES } from './types/form';
+import type { FormValues } from './types/form';
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  // Form values live here, so they survive loading, errors and retries.
+  const [values, setValues] = useState<FormValues>(INITIAL_VALUES);
+  const { status, data, error, runId, generate, retry, clearError } = useGenerateScript();
+  const outputRef = useRef<HTMLElement>(null);
+
+  function patch(update: Partial<FormValues>) {
+    setValues((v) => ({ ...v, ...update }));
+  }
+
+  function scrollToOutput() {
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    outputRef.current?.scrollIntoView({
+      behavior: smooth ? 'smooth' : 'auto',
+      block: 'start',
+    });
+  }
+
+  function handleSubmit() {
+    void generate(values);
+    scrollToOutput();
+  }
+
+  function handleRetry() {
+    retry();
+    scrollToOutput();
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+    <div className="shell">
+      <header className="masthead">
+        <span className="rec-dot" aria-hidden="true" />
+        Script Assistant
+      </header>
+
+      <section className="hero">
+        <h1>Three ready-to-film scripts from one product photo.</h1>
+        <p>
+          Describe the product, add its photo, and get three customer segments with a
+          phone-ready UGC ad script for each.
+        </p>
       </section>
 
-      <div className="ticks"></div>
+      <ProductForm
+        values={values}
+        onChange={patch}
+        onSubmit={handleSubmit}
+        submitting={status === 'loading'}
+      />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
+      <section ref={outputRef} className="output" aria-label="Generated scripts">
+        {status === 'idle' && (
+          <div className="empty">
+            <h2>Your scripts will appear here</h2>
+            <p>
+              Fill in the product details and add a photo. You will get 3 customer
+              segments, one script for each, and 3 reasons per script.
+            </p>
+          </div>
+        )}
+
+        {status === 'loading' && <LoadingState />}
+
+        {status === 'error' && error && (
+          <ErrorBanner error={error} onRetry={handleRetry} onDismiss={clearError} />
+        )}
+
+        {status === 'success' && data && <ResultsView key={runId} data={data} />}
       </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    </div>
+  );
 }
-
-export default App
