@@ -95,7 +95,14 @@ export default function App() {
           <ErrorBanner error={error} onRetry={handleRetry} onDismiss={clearError} />
         )}
 
-        {data && <ResultsView key={runId} data={data} isStreaming={status === 'streaming'} />}
+        {data && (
+          <ResultsView
+            key={runId}
+            data={data}
+            isStreaming={status === 'streaming'}
+            meta={{ name: values.name, market: values.market, language: values.language }}
+          />
+        )}
       </section>
 
       <SavedScriptsDrawer

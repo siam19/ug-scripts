@@ -44,6 +44,7 @@ export interface ReasonItem {
   title: string;
   why: string;
   cites: Uid[]; // LineNode uids cited by this reason
+  pending?: boolean;
 }
 
 export interface Basis {

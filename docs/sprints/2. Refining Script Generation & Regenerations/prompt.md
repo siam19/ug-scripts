@@ -1,6 +1,6 @@
 We implemented a working script generator but now we will add more granular customizability and regeneration options to truly refine the script creation process.
 
-Here are the main 4 ideas I have for this sprint:
+Here are the main 4 feature ideas I have for this sprint:
 
 1. The `.chip` elements in the first `.results-section` (the facts section) will be editable. Show a faint edit icon and a cross icon to remove a chip from the `.chip-list`. Editing the facts makes the `.segment-section-animated` section generation stale. You can regenerate the entire section with the updated facts. Figure out an elegant way to visualize this that is non-invasive, meaning you can interact with the components inside even though the section is stale. ![Facts the script relies on section](image.png)
 
@@ -28,4 +28,7 @@ Here are the main 4 ideas I have for this sprint:
 As you can see, this is a pretty extensive feature update that requires significant architectural reconsiderations in both `api` and `web` app.
 
 UI-Bugs:
-- The screen doesn't move down as the customer segments are generated, forcing users to scroll down. Move the screen down enough to show the customer segments that were added (`.segment-section-animated`) along with the generating script card box (`.script-skeleton-card` / `.script-card`) in full view.
+- The screen doesn't move down enough as the customer segments are generated, forcing users to scroll down. Move the screen down enough to show the customer segments that were added (`.segment-section-animated`) along with the generating script card box (`.script-skeleton-card` / `.script-card`) in full view of window.
+
+Future Feature (out of scope for this sprint):
+- Token counting mechanism to calculate cost per generation and script.

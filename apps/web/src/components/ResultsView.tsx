@@ -31,9 +31,14 @@ import type { ToastItem } from './ToastHost';
 interface Props {
   data: ProgressiveGenerateResponse;
   isStreaming?: boolean;
+  meta?: { name: string; market: string; language: 'en' | 'bn' };
 }
 
-export function ResultsView({ data, isStreaming = false }: Props) {
+export function ResultsView({
+  data,
+  isStreaming = false,
+  meta = { name: 'Product', market: 'Global', language: 'en' },
+}: Props) {
   const uid = useId();
   const [workspace, dispatch] = useReducer(workspaceReducer, INITIAL_WORKSPACE);
   const { save, isSaved, remove: removeSaved } = useSavedScripts();
@@ -43,7 +48,7 @@ export function ResultsView({ data, isStreaming = false }: Props) {
     rephraseLine,
     regenerateLine,
     rewriteScript,
-  } = useRegenerate();
+  } = useRegenerate(meta);
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const segmentSectionRef = useRef<HTMLElement>(null);
@@ -51,9 +56,14 @@ export function ResultsView({ data, isStreaming = false }: Props) {
 
   // Toasts
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const addToast = (msg: string, undoAction?: () => void, undoLabel?: string) => {
+  const addToast = (
+    msg: string,
+    undoAction?: () => void,
+    undoLabel?: string,
+    isError?: boolean,
+  ) => {
     const id = generateUid();
-    setToasts((prev) => [...prev, { id, message: msg, undoAction, undoLabel }]);
+    setToasts((prev) => [...prev, { id, message: msg, undoAction, undoLabel, isError }]);
   };
   const dismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
@@ -68,10 +78,14 @@ export function ResultsView({ data, isStreaming = false }: Props) {
         type: 'SEED_WORKSPACE',
         facts: data.facts,
         segments: data.segments,
-        meta: { name: 'Product', market: 'Global', language: 'en' },
+        meta: {
+          name: meta.name || 'Product',
+          market: meta.market || 'Global',
+          language: meta.language || 'en',
+        },
       });
     }
-  }, [data.facts, data.segments]);
+  }, [data.facts, data.segments, meta]);
 
   // Feed streamed scripts progressively into workspace slots
   const ingestedScripts = useRef<Set<number>>(new Set());
@@ -300,8 +314,10 @@ export function ResultsView({ data, isStreaming = false }: Props) {
 
       // Auto-trigger script generation for the new segment
       handleRewriteScript(slot.id, newSeg);
-    } catch {
-      // rollback
+    } catch (err: unknown) {
+      dispatch({ type: 'REPLACE_SEGMENT_FAIL', slotId: slot.id });
+      const msg = err instanceof Error ? err.message : 'Failed to regenerate segment';
+      addToast(msg, undefined, undefined, true);
     }
   }
 
@@ -314,8 +330,10 @@ export function ResultsView({ data, isStreaming = false }: Props) {
       const newScript = await rewriteScript(segOverride || slot.segment, factsList);
       dispatch({ type: 'REWRITE_SCRIPT_SUCCESS', slotId, script: newScript });
       addToast('Script rewritten for current segment');
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      dispatch({ type: 'REWRITE_SCRIPT_FAIL', slotId });
+      const msg = err instanceof Error ? err.message : 'Failed to rewrite script';
+      addToast(msg, undefined, undefined, true);
     }
   }
 
@@ -328,20 +346,45 @@ export function ResultsView({ data, isStreaming = false }: Props) {
     dispatch({ type: 'REWRITE_REASON_START', reasonUid });
 
     const cover = resolveVisibleCover(activeDoc, reason.cites);
-    if (!cover) return;
+    if (!cover) {
+      dispatch({ type: 'REWRITE_REASON_FAIL', reasonUid });
+      return;
+    }
 
     const visibleUids = cover.coverNodes.flatMap(collectVisibleUids);
     const linesToRewrite = getActiveLines(activeDoc)
       .filter((l) => visibleUids.includes(l.node.uid))
       .map((l) => ({ kind: l.node.kind, text: l.text }));
 
+    const fullScript = activeLines.map((l, idx) => ({
+      id: idx + 1,
+      kind: l.node.kind,
+      text: l.text,
+    }));
+    const targetLineIds = activeLines
+      .map((l, idx) => (visibleUids.includes(l.node.uid) ? idx + 1 : null))
+      .filter((id): id is number => id !== null);
+    const factsList = workspace.facts.map((f) => f.text);
+
     try {
-      const newLines = await rewriteReasonLines(reason.title, reason.why, linesToRewrite);
+      const newLines = await rewriteReasonLines(
+        reason.title,
+        reason.why,
+        linesToRewrite,
+        {
+          segment: activeSlot?.segment,
+          facts: factsList,
+          fullScript,
+          targetLineIds,
+        },
+      );
       dispatch({ type: 'REWRITE_REASON_SUCCESS', reasonUid, newLines });
       visibleUids.forEach(markChanged);
       addToast(`Lines rewritten for “${reason.title}”`);
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      dispatch({ type: 'REWRITE_REASON_FAIL', reasonUid });
+      const msg = err instanceof Error ? err.message : 'Failed to rewrite lines for reason';
+      addToast(msg, undefined, undefined, true);
     }
   }
 
@@ -349,8 +392,27 @@ export function ResultsView({ data, isStreaming = false }: Props) {
     const line = activeLines.find((l) => l.node.uid === lineUid);
     if (!line) return;
     dispatch({ type: 'REPHRASE_LINE_START', lineUid });
+
+    const lineIdx = activeLines.findIndex((l) => l.node.uid === lineUid);
+    const lineId = lineIdx !== -1 ? lineIdx + 1 : 1;
+    const scriptContext = activeLines.map((l, idx) => ({
+      id: idx + 1,
+      kind: l.node.kind,
+      text: l.text,
+    }));
+    const avoidTones = line.node.versions
+      .map((v) => v.detail)
+      .filter((d): d is string => Boolean(d));
+    const factsList = workspace.facts.map((f) => f.text);
+
     try {
-      const res = await rephraseLine(line.text, line.node.kind);
+      const res = await rephraseLine(line.text, line.node.kind, {
+        segment: activeSlot?.segment,
+        facts: factsList,
+        scriptContext,
+        lineId,
+        avoidTones,
+      });
       dispatch({
         type: 'REPHRASE_LINE_SUCCESS',
         lineUid,
@@ -358,8 +420,10 @@ export function ResultsView({ data, isStreaming = false }: Props) {
         tone: res.tone,
       });
       markChanged(lineUid);
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      dispatch({ type: 'LINE_ACTION_FAIL', lineUid });
+      const msg = err instanceof Error ? err.message : 'Failed to rephrase line';
+      addToast(msg, undefined, undefined, true);
     }
   }
 
@@ -367,12 +431,29 @@ export function ResultsView({ data, isStreaming = false }: Props) {
     const line = activeLines.find((l) => l.node.uid === lineUid);
     if (!line) return;
     dispatch({ type: 'REGENERATE_LINE_START', lineUid });
+
+    const lineIdx = activeLines.findIndex((l) => l.node.uid === lineUid);
+    const lineId = lineIdx !== -1 ? lineIdx + 1 : 1;
+    const scriptContext = activeLines.map((l, idx) => ({
+      id: idx + 1,
+      kind: l.node.kind,
+      text: l.text,
+    }));
+    const factsList = workspace.facts.map((f) => f.text);
+
     try {
-      const newText = await regenerateLine(line.text, line.node.kind);
+      const newText = await regenerateLine(line.text, line.node.kind, {
+        segment: activeSlot?.segment,
+        facts: factsList,
+        scriptContext,
+        lineId,
+      });
       dispatch({ type: 'REGENERATE_LINE_SUCCESS', lineUid, text: newText });
       markChanged(lineUid);
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      dispatch({ type: 'LINE_ACTION_FAIL', lineUid });
+      const msg = err instanceof Error ? err.message : 'Failed to regenerate line';
+      addToast(msg, undefined, undefined, true);
     }
   }
 
@@ -415,9 +496,10 @@ export function ResultsView({ data, isStreaming = false }: Props) {
       refs,
       orphan: refs.length === 0,
       pending:
-        workspace.selection.kind === 'reason' &&
-        workspace.selection.reasonUid === r.uid &&
-        cover?.coverNodes.some((n) => n.type === 'group' && n.pending),
+        Boolean(r.pending) ||
+        (workspace.selection.kind === 'reason' &&
+          workspace.selection.reasonUid === r.uid &&
+          Boolean(cover?.coverNodes.some((n) => n.type === 'group' && n.pending))),
     };
   });
 

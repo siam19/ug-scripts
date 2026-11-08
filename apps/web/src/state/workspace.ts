@@ -43,10 +43,12 @@ export type WorkspaceAction =
   | { type: 'REPLACE_SEGMENT_START'; slotId: Uid }
   | { type: 'REPLACE_SEGMENT_SUCCESS'; slotId: Uid; segment: Segment }
   | { type: 'REPLACE_SEGMENT_UNDO'; slotId: Uid }
+  | { type: 'REPLACE_SEGMENT_FAIL'; slotId: Uid }
   | { type: 'EDIT_SEGMENT'; slotId: Uid; segment: Segment }
   // Whole Script
   | { type: 'REWRITE_SCRIPT_START'; slotId: Uid }
   | { type: 'REWRITE_SCRIPT_SUCCESS'; slotId: Uid; script: Script }
+  | { type: 'REWRITE_SCRIPT_FAIL'; slotId: Uid }
   | { type: 'KEEP_SCRIPT_AS_IS'; slotId: Uid }
   // Line Actions
   | { type: 'EDIT_LINE'; lineUid: Uid; text: string }
@@ -54,6 +56,7 @@ export type WorkspaceAction =
   | { type: 'REPHRASE_LINE_SUCCESS'; lineUid: Uid; text: string; tone?: string }
   | { type: 'REGENERATE_LINE_START'; lineUid: Uid }
   | { type: 'REGENERATE_LINE_SUCCESS'; lineUid: Uid; text: string }
+  | { type: 'LINE_ACTION_FAIL'; lineUid: Uid }
   | { type: 'DELETE_LINE'; lineUid: Uid }
   | { type: 'UNDO_LINE'; lineUid: Uid }
   | { type: 'REDO_LINE'; lineUid: Uid }
@@ -64,7 +67,8 @@ export type WorkspaceAction =
       type: 'REWRITE_REASON_SUCCESS';
       reasonUid: Uid;
       newLines: { kind: LineKind; text: string }[];
-    };
+    }
+  | { type: 'REWRITE_REASON_FAIL'; reasonUid: Uid };
 
 export const INITIAL_WORKSPACE: Workspace = {
   meta: { name: '', market: '', language: 'en' },
@@ -282,6 +286,15 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       };
     }
 
+    case 'REPLACE_SEGMENT_FAIL': {
+      return {
+        ...state,
+        slots: state.slots.map((s) =>
+          s.id === action.slotId ? { ...s, pending: false } : s,
+        ),
+      };
+    }
+
     case 'EDIT_SEGMENT': {
       return {
         ...state,
@@ -332,6 +345,16 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
           };
         }),
         selection: { kind: 'none' },
+      };
+    }
+
+    case 'REWRITE_SCRIPT_FAIL': {
+      return {
+        ...state,
+        slots: state.slots.map((s) => {
+          if (s.id !== action.slotId || !s.script) return s;
+          return { ...s, script: { ...s.script, pending: false } };
+        }),
       };
     }
 
@@ -435,6 +458,13 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       });
     }
 
+    case 'LINE_ACTION_FAIL': {
+      return mutateLineNode(state, action.lineUid, (line) => ({
+        ...line,
+        pending: undefined,
+      }));
+    }
+
     case 'DELETE_LINE': {
       return mutateLineNode(state, action.lineUid, (line) => {
         const newVersion: LineVersion = {
@@ -517,11 +547,27 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       const reason = rev?.reasons.find((r) => r.uid === action.reasonUid);
       if (!reason) return state;
 
+      const updatedReasons = rev.reasons.map((r) =>
+        r.uid === action.reasonUid ? { ...r, pending: true } : r,
+      );
+      const nextRev: ScriptRevision = { ...rev, reasons: updatedReasons };
+      const nextRevs = [...doc.revisions];
+      nextRevs[doc.cursor] = nextRev;
+
+      let nextState: Workspace = {
+        ...state,
+        slots: state.slots.map((s) =>
+          s.id === state.activeSlotId && s.script
+            ? { ...s, script: { ...s.script, revisions: nextRevs } }
+            : s,
+        ),
+      };
+
       const cover = resolveVisibleCover(doc, reason.cites);
       if (cover && cover.coverNodes.length === 1 && cover.coverNodes[0].type === 'group') {
-        return mutateGroupNode(state, cover.coverNodes[0].uid, (g) => ({ ...g, pending: true }));
+        nextState = mutateGroupNode(nextState, cover.coverNodes[0].uid, (g) => ({ ...g, pending: true }));
       }
-      return state;
+      return nextState;
     }
 
     case 'REWRITE_REASON_SUCCESS': {
@@ -535,6 +581,10 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
 
       const cover = resolveVisibleCover(doc, reason.cites);
       if (!cover) return state;
+
+      const updatedReasons = rev.reasons.map((r) =>
+        r.uid === action.reasonUid ? { ...r, pending: false } : r,
+      );
 
       // Build new LineNodes for the rewritten lines
       const newNodes: LineNode[] = action.newLines.map((nl) => ({
@@ -554,12 +604,23 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
           children: newNodes,
         };
         const nextGroupVers = [...group.versions, newGroupVer];
-        return mutateGroupNode(state, group.uid, (g) => ({
+        const nextState = mutateGroupNode(state, group.uid, (g) => ({
           ...g,
           versions: nextGroupVers,
           cursor: nextGroupVers.length - 1,
           pending: false,
         }));
+        return {
+          ...nextState,
+          slots: nextState.slots.map((s) => {
+            if (s.id !== nextState.activeSlotId || !s.script) return s;
+            const curRev = s.script.revisions[s.script.cursor];
+            if (!curRev) return s;
+            const updatedRevs = [...s.script.revisions];
+            updatedRevs[s.script.cursor] = { ...curRev, reasons: updatedReasons };
+            return { ...s, script: { ...s.script, revisions: updatedRevs } };
+          }),
+        };
       }
 
       // Otherwise, WRAP the contiguous coverNodes into a new GroupNode
@@ -589,6 +650,7 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       const nextRev: ScriptRevision = {
         ...rev,
         nodes: nextNodes,
+        reasons: updatedReasons,
       };
       const nextRevs = [...doc.revisions];
       nextRevs[doc.cursor] = nextRev;
@@ -601,6 +663,38 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
             : s,
         ),
       };
+    }
+
+    case 'REWRITE_REASON_FAIL': {
+      const slot = state.slots.find((s) => s.id === state.activeSlotId);
+      const doc = slot?.script;
+      if (!doc) return state;
+
+      const rev = doc.revisions[doc.cursor];
+      const reason = rev?.reasons.find((r) => r.uid === action.reasonUid);
+      if (!reason) return state;
+
+      const updatedReasons = rev.reasons.map((r) =>
+        r.uid === action.reasonUid ? { ...r, pending: false } : r,
+      );
+      const nextRev: ScriptRevision = { ...rev, reasons: updatedReasons };
+      const nextRevs = [...doc.revisions];
+      nextRevs[doc.cursor] = nextRev;
+
+      let nextState: Workspace = {
+        ...state,
+        slots: state.slots.map((s) =>
+          s.id === state.activeSlotId && s.script
+            ? { ...s, script: { ...s.script, revisions: nextRevs } }
+            : s,
+        ),
+      };
+
+      const cover = resolveVisibleCover(doc, reason.cites);
+      if (cover && cover.coverNodes.length === 1 && cover.coverNodes[0].type === 'group') {
+        nextState = mutateGroupNode(nextState, cover.coverNodes[0].uid, (g) => ({ ...g, pending: false }));
+      }
+      return nextState;
     }
 
     default:

@@ -147,6 +147,376 @@
           }
         }
       }
+    },
+    "/regenerate/segment": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Regenerate a single customer segment distinct from all active segments",
+        "description": "Generates a unique customer segment differing from all other active segments\nwhile maintaining the selected language (English or Bangla).",
+        "operationId": "regenerate_segment_regenerate_segment_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SegmentRegenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Segment"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regenerate/script": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Rewrite an entire UGC script for a specific segment",
+        "description": "Regenerates a complete script for a specific segment against active facts\nwhile strictly retaining the requested language and enforcing contiguous reasons.",
+        "operationId": "rewrite_script_regenerate_script_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptRewriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Script"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regenerate/reason-lines": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Rewrite the contiguous line group cited by a marketing technique",
+        "description": "Rewrites the lines cited by a marketing technique while keeping surrounding\nscript narrative context and preserving structural roles (hook/cta).",
+        "operationId": "rewrite_reason_lines_regenerate_reason_lines_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReasonLinesRewriteRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReasonLinesRewriteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regenerate/line/rephrase": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Rephrase a single line in an alternative tone while preserving meaning",
+        "description": "Rephrases a single sentence into a distinct tone (punchy, casual, authentic, direct)\nwhile preserving grammatical subject/object and language settings.",
+        "operationId": "rephrase_line_regenerate_line_rephrase_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineRephraseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineRephraseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regenerate/line/regenerate": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Replace a single line with a completely new angle fitting the same position",
+        "description": "Replaces a single line with a fresh, distinct angle matching its structural role\n(hook, concept, cta) in the chosen language.",
+        "operationId": "regenerate_line_regenerate_line_regenerate_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineRegenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineRegenerateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/regenerate/section": {
+      "post": {
+        "tags": [
+          "Granular Regenerations"
+        ],
+        "summary": "Regenerate customer segments and scripts progressively via SSE after facts updates",
+        "description": "Progressive SSE pipeline that runs when product facts are updated:\n1. Preserves hand-edited segments where keep_segment is True.\n2. Generates new distinct segments for slots where keep_segment is False.\n   -> Yields 'segments' event.\n3. In parallel, rewrites scripts for all 3 segments with updated facts.\n   -> Yields 'script' event as each finishes.\n4. Yields 'done' event on completion or 'error' on failure.",
+        "operationId": "regenerate_section_regenerate_section_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionRegenerateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -330,6 +700,217 @@
         "title": "Line",
         "description": "A single spoken line or beat within a UGC video script."
       },
+      "LineRegenerateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current product facts"
+          },
+          "segment": {
+            "$ref": "#/components/schemas/Segment",
+            "description": "Target customer segment"
+          },
+          "script_context": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptLineContext"
+            },
+            "type": "array",
+            "title": "Script Context",
+            "description": "Visible lines before and after the line"
+          },
+          "line_id": {
+            "type": "integer",
+            "title": "Line Id",
+            "description": "Line ID of the target line"
+          },
+          "current_text": {
+            "type": "string",
+            "title": "Current Text",
+            "description": "Existing dialogue being replaced"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Role of the line"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "market",
+          "language",
+          "facts",
+          "segment",
+          "script_context",
+          "line_id",
+          "current_text",
+          "kind"
+        ],
+        "title": "LineRegenerateRequest",
+        "description": "Request model for POST /regenerate/line/regenerate.\nReplaces a single line with an alternative angle or idea for that position."
+      },
+      "LineRegenerateResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Freshly generated line in the target language"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Verified line kind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "kind"
+        ],
+        "title": "LineRegenerateResponse",
+        "description": "Response model for POST /regenerate/line/regenerate."
+      },
+      "LineRephraseRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current product facts"
+          },
+          "segment": {
+            "$ref": "#/components/schemas/Segment",
+            "description": "Target customer segment"
+          },
+          "script_context": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptLineContext"
+            },
+            "type": "array",
+            "title": "Script Context",
+            "description": "Visible lines surrounding the target line to maintain narrative flow"
+          },
+          "line_id": {
+            "type": "integer",
+            "title": "Line Id",
+            "description": "Line ID of the target line"
+          },
+          "current_text": {
+            "type": "string",
+            "title": "Current Text",
+            "description": "Existing line dialogue to rephrase"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Role of the line"
+          },
+          "avoid_tones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Avoid Tones",
+            "description": "List of tones already attempted for this line (e.g. ['punchy', 'casual'])"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "market",
+          "language",
+          "facts",
+          "segment",
+          "script_context",
+          "line_id",
+          "current_text",
+          "kind"
+        ],
+        "title": "LineRephraseRequest",
+        "description": "Request model for POST /regenerate/line/rephrase.\nRephrases a single sentence to maintain core meaning while shifting tone."
+      },
+      "LineRephraseResponse": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Rephrased dialogue text in target language"
+          },
+          "tone": {
+            "type": "string",
+            "title": "Tone",
+            "description": "Selected tone identifier (e.g., 'punchy', 'casual', 'authentic', 'direct')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "tone"
+        ],
+        "title": "LineRephraseResponse",
+        "description": "Response model for POST /regenerate/line/rephrase."
+      },
       "Reason": {
         "properties": {
           "title": {
@@ -359,6 +940,142 @@
         ],
         "title": "Reason",
         "description": "Performance rationale explaining why a specific technique was incorporated into the script."
+      },
+      "ReasonInfo": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Technique name (e.g., 'Direct Objection Handling')"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "Psychological explanation for why this works on the segment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "why"
+        ],
+        "title": "ReasonInfo",
+        "description": "Marketing technique details attached to a line-group rewrite request."
+      },
+      "ReasonLinesRewriteRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current product facts"
+          },
+          "segment": {
+            "$ref": "#/components/schemas/Segment",
+            "description": "Target segment"
+          },
+          "full_script": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptLineContext"
+            },
+            "type": "array",
+            "title": "Full Script",
+            "description": "Complete sequence of visible script lines"
+          },
+          "target_line_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Target Line Ids",
+            "description": "The sequential line IDs to replace"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/ReasonInfo",
+            "description": "The rationale technique to regenerate and strengthen"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "market",
+          "language",
+          "facts",
+          "segment",
+          "full_script",
+          "target_line_ids",
+          "reason"
+        ],
+        "title": "ReasonLinesRewriteRequest",
+        "description": "Request model for POST /regenerate/reason-lines.\nRewrites the line group associated with a specific marketing technique."
+      },
+      "ReasonLinesRewriteResponse": {
+        "properties": {
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/RewrittenLine"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Lines",
+            "description": "Replacement line sequence (count may vary slightly if required to fulfill the technique)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lines"
+        ],
+        "title": "ReasonLinesRewriteResponse",
+        "description": "Response model for POST /regenerate/reason-lines."
+      },
+      "RewrittenLine": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Role of this line"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "New dialogue text in the target language"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "text"
+        ],
+        "title": "RewrittenLine",
+        "description": "A single line generated as part of a reason line-group rewrite."
       },
       "Script": {
         "properties": {
@@ -392,6 +1109,157 @@
         ],
         "title": "Script",
         "description": "Complete ready-to-film short-form video ad script for a specific customer segment."
+      },
+      "ScriptLineContext": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "1-based position in visible script"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "hook",
+              "concept",
+              "cta"
+            ],
+            "title": "Kind",
+            "description": "Role of this line in the video"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Dialogue text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "text"
+        ],
+        "title": "ScriptLineContext",
+        "description": "Contextual representation of a visible script line provided for narrative flow."
+      },
+      "ScriptRewriteRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current product facts"
+          },
+          "segment": {
+            "$ref": "#/components/schemas/Segment",
+            "description": "Target segment (may include user edits)"
+          },
+          "hook_style": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hook Style",
+            "description": "Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "market",
+          "language",
+          "facts",
+          "segment"
+        ],
+        "title": "ScriptRewriteRequest",
+        "description": "Request model for POST /regenerate/script.\nRegenerates a complete script for a specific segment against active facts."
+      },
+      "SectionRegenerateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current active product facts"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/SlotConfig"
+            },
+            "type": "array",
+            "title": "Slots",
+            "description": "Configuration for each slot indicating whether to preserve or replace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "market",
+          "language",
+          "facts"
+        ],
+        "title": "SectionRegenerateRequest",
+        "description": "Request model for POST /regenerate/section.\nRegenerates customer segments and scripts progressively after facts updates."
       },
       "Segment": {
         "properties": {
@@ -428,6 +1296,98 @@
         ],
         "title": "Segment",
         "description": "Represents a specific target audience / customer segment."
+      },
+      "SegmentRegenerateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market (e.g., 'Bangladesh', 'Global')"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target language ('en' for English, 'bn' for Bangla)"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Facts",
+            "description": "Current active product facts"
+          },
+          "current_segment": {
+            "$ref": "#/components/schemas/Segment",
+            "description": "The segment being replaced"
+          },
+          "existing_segment_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Existing Segment Names",
+            "description": "Names of other active segments to guarantee the new one is unique"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "category",
+          "market",
+          "language",
+          "facts",
+          "current_segment"
+        ],
+        "title": "SegmentRegenerateRequest",
+        "description": "Request model for POST /regenerate/segment.\nGenerates a unique customer segment differing from all other active segments."
+      },
+      "SlotConfig": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "Slot index (0..2)"
+          },
+          "keep_segment": {
+            "type": "boolean",
+            "title": "Keep Segment",
+            "description": "Whether to keep the existing segment data",
+            "default": false
+          },
+          "segment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Segment"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Segment to retain if keep_segment is True"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "title": "SlotConfig",
+        "description": "Configuration for an individual customer segment slot during section regeneration."
       },
       "ValidationError": {
         "properties": {

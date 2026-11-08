@@ -76,6 +76,137 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/regenerate/segment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate a single customer segment distinct from all active segments
+         * @description Generates a unique customer segment differing from all other active segments
+         *     while maintaining the selected language (English or Bangla).
+         */
+        post: operations["regenerate_segment_regenerate_segment_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regenerate/script": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rewrite an entire UGC script for a specific segment
+         * @description Regenerates a complete script for a specific segment against active facts
+         *     while strictly retaining the requested language and enforcing contiguous reasons.
+         */
+        post: operations["rewrite_script_regenerate_script_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regenerate/reason-lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rewrite the contiguous line group cited by a marketing technique
+         * @description Rewrites the lines cited by a marketing technique while keeping surrounding
+         *     script narrative context and preserving structural roles (hook/cta).
+         */
+        post: operations["rewrite_reason_lines_regenerate_reason_lines_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regenerate/line/rephrase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rephrase a single line in an alternative tone while preserving meaning
+         * @description Rephrases a single sentence into a distinct tone (punchy, casual, authentic, direct)
+         *     while preserving grammatical subject/object and language settings.
+         */
+        post: operations["rephrase_line_regenerate_line_rephrase_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regenerate/line/regenerate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a single line with a completely new angle fitting the same position
+         * @description Replaces a single line with a fresh, distinct angle matching its structural role
+         *     (hook, concept, cta) in the chosen language.
+         */
+        post: operations["regenerate_line_regenerate_line_regenerate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/regenerate/section": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate customer segments and scripts progressively via SSE after facts updates
+         * @description Progressive SSE pipeline that runs when product facts are updated:
+         *     1. Preserves hand-edited segments where keep_segment is True.
+         *     2. Generates new distinct segments for slots where keep_segment is False.
+         *        -> Yields 'segments' event.
+         *     3. In parallel, rewrites scripts for all 3 segments with updated facts.
+         *        -> Yields 'script' event as each finishes.
+         *     4. Yields 'done' event on completion or 'error' on failure.
+         */
+        post: operations["regenerate_section_regenerate_section_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -197,6 +328,146 @@ export interface components {
             text: string;
         };
         /**
+         * LineRegenerateRequest
+         * @description Request model for POST /regenerate/line/regenerate.
+         *     Replaces a single line with an alternative angle or idea for that position.
+         */
+        LineRegenerateRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Market
+             * @description Target market
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current product facts
+             */
+            facts: string[];
+            /** @description Target customer segment */
+            segment: components["schemas"]["Segment"];
+            /**
+             * Script Context
+             * @description Visible lines before and after the line
+             */
+            script_context: components["schemas"]["ScriptLineContext"][];
+            /**
+             * Line Id
+             * @description Line ID of the target line
+             */
+            line_id: number;
+            /**
+             * Current Text
+             * @description Existing dialogue being replaced
+             */
+            current_text: string;
+            /**
+             * Kind
+             * @description Role of the line
+             * @enum {string}
+             */
+            kind: "hook" | "concept" | "cta";
+        };
+        /**
+         * LineRegenerateResponse
+         * @description Response model for POST /regenerate/line/regenerate.
+         */
+        LineRegenerateResponse: {
+            /**
+             * Text
+             * @description Freshly generated line in the target language
+             */
+            text: string;
+            /**
+             * Kind
+             * @description Verified line kind
+             * @enum {string}
+             */
+            kind: "hook" | "concept" | "cta";
+        };
+        /**
+         * LineRephraseRequest
+         * @description Request model for POST /regenerate/line/rephrase.
+         *     Rephrases a single sentence to maintain core meaning while shifting tone.
+         */
+        LineRephraseRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Market
+             * @description Target market
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current product facts
+             */
+            facts: string[];
+            /** @description Target customer segment */
+            segment: components["schemas"]["Segment"];
+            /**
+             * Script Context
+             * @description Visible lines surrounding the target line to maintain narrative flow
+             */
+            script_context: components["schemas"]["ScriptLineContext"][];
+            /**
+             * Line Id
+             * @description Line ID of the target line
+             */
+            line_id: number;
+            /**
+             * Current Text
+             * @description Existing line dialogue to rephrase
+             */
+            current_text: string;
+            /**
+             * Kind
+             * @description Role of the line
+             * @enum {string}
+             */
+            kind: "hook" | "concept" | "cta";
+            /**
+             * Avoid Tones
+             * @description List of tones already attempted for this line (e.g. ['punchy', 'casual'])
+             */
+            avoid_tones?: string[];
+        };
+        /**
+         * LineRephraseResponse
+         * @description Response model for POST /regenerate/line/rephrase.
+         */
+        LineRephraseResponse: {
+            /**
+             * Text
+             * @description Rephrased dialogue text in target language
+             */
+            text: string;
+            /**
+             * Tone
+             * @description Selected tone identifier (e.g., 'punchy', 'casual', 'authentic', 'direct')
+             */
+            tone: string;
+        };
+        /**
          * Reason
          * @description Performance rationale explaining why a specific technique was incorporated into the script.
          */
@@ -218,6 +489,92 @@ export interface components {
             line_ids: number[];
         };
         /**
+         * ReasonInfo
+         * @description Marketing technique details attached to a line-group rewrite request.
+         */
+        ReasonInfo: {
+            /**
+             * Title
+             * @description Technique name (e.g., 'Direct Objection Handling')
+             */
+            title: string;
+            /**
+             * Why
+             * @description Psychological explanation for why this works on the segment
+             */
+            why: string;
+        };
+        /**
+         * ReasonLinesRewriteRequest
+         * @description Request model for POST /regenerate/reason-lines.
+         *     Rewrites the line group associated with a specific marketing technique.
+         */
+        ReasonLinesRewriteRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Market
+             * @description Target market
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current product facts
+             */
+            facts: string[];
+            /** @description Target segment */
+            segment: components["schemas"]["Segment"];
+            /**
+             * Full Script
+             * @description Complete sequence of visible script lines
+             */
+            full_script: components["schemas"]["ScriptLineContext"][];
+            /**
+             * Target Line Ids
+             * @description The sequential line IDs to replace
+             */
+            target_line_ids: number[];
+            /** @description The rationale technique to regenerate and strengthen */
+            reason: components["schemas"]["ReasonInfo"];
+        };
+        /**
+         * ReasonLinesRewriteResponse
+         * @description Response model for POST /regenerate/reason-lines.
+         */
+        ReasonLinesRewriteResponse: {
+            /**
+             * Lines
+             * @description Replacement line sequence (count may vary slightly if required to fulfill the technique)
+             */
+            lines: components["schemas"]["RewrittenLine"][];
+        };
+        /**
+         * RewrittenLine
+         * @description A single line generated as part of a reason line-group rewrite.
+         */
+        RewrittenLine: {
+            /**
+             * Kind
+             * @description Role of this line
+             * @enum {string}
+             */
+            kind: "hook" | "concept" | "cta";
+            /**
+             * Text
+             * @description New dialogue text in the target language
+             */
+            text: string;
+        };
+        /**
          * Script
          * @description Complete ready-to-film short-form video ad script for a specific customer segment.
          */
@@ -237,6 +594,106 @@ export interface components {
              * @description Exactly 3 reasons explaining why the script is constructed this way
              */
             reasons: components["schemas"]["Reason"][];
+        };
+        /**
+         * ScriptLineContext
+         * @description Contextual representation of a visible script line provided for narrative flow.
+         */
+        ScriptLineContext: {
+            /**
+             * Id
+             * @description 1-based position in visible script
+             */
+            id: number;
+            /**
+             * Kind
+             * @description Role of this line in the video
+             * @enum {string}
+             */
+            kind: "hook" | "concept" | "cta";
+            /**
+             * Text
+             * @description Dialogue text
+             */
+            text: string;
+        };
+        /**
+         * ScriptRewriteRequest
+         * @description Request model for POST /regenerate/script.
+         *     Regenerates a complete script for a specific segment against active facts.
+         */
+        ScriptRewriteRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Category
+             * @description Product category
+             */
+            category: string;
+            /**
+             * Market
+             * @description Target market
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current product facts
+             */
+            facts: string[];
+            /** @description Target segment (may include user edits) */
+            segment: components["schemas"]["Segment"];
+            /**
+             * Hook Style
+             * @description Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')
+             */
+            hook_style?: string | null;
+        };
+        /**
+         * SectionRegenerateRequest
+         * @description Request model for POST /regenerate/section.
+         *     Regenerates customer segments and scripts progressively after facts updates.
+         */
+        SectionRegenerateRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Category
+             * @description Product category
+             */
+            category: string;
+            /**
+             * Market
+             * @description Target market
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current active product facts
+             */
+            facts: string[];
+            /**
+             * Slots
+             * @description Configuration for each slot indicating whether to preserve or replace
+             */
+            slots?: components["schemas"]["SlotConfig"][];
         };
         /**
          * Segment
@@ -263,6 +720,65 @@ export interface components {
              * @description Short-form platforms where this segment is most active (e.g., ['TikTok', 'Instagram Reels', 'YouTube Shorts'])
              */
             platforms: string[];
+        };
+        /**
+         * SegmentRegenerateRequest
+         * @description Request model for POST /regenerate/segment.
+         *     Generates a unique customer segment differing from all other active segments.
+         */
+        SegmentRegenerateRequest: {
+            /**
+             * Name
+             * @description Product name
+             */
+            name: string;
+            /**
+             * Category
+             * @description Product category
+             */
+            category: string;
+            /**
+             * Market
+             * @description Target market (e.g., 'Bangladesh', 'Global')
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target language ('en' for English, 'bn' for Bangla)
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Facts
+             * @description Current active product facts
+             */
+            facts: string[];
+            /** @description The segment being replaced */
+            current_segment: components["schemas"]["Segment"];
+            /**
+             * Existing Segment Names
+             * @description Names of other active segments to guarantee the new one is unique
+             */
+            existing_segment_names?: string[];
+        };
+        /**
+         * SlotConfig
+         * @description Configuration for an individual customer segment slot during section regeneration.
+         */
+        SlotConfig: {
+            /**
+             * Index
+             * @description Slot index (0..2)
+             */
+            index: number;
+            /**
+             * Keep Segment
+             * @description Whether to keep the existing segment data
+             * @default false
+             */
+            keep_segment: boolean;
+            /** @description Segment to retain if keep_segment is True */
+            segment?: components["schemas"]["Segment"] | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -355,6 +871,222 @@ export interface operations {
         requestBody: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_generate_stream_generate_stream_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_segment_regenerate_segment_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SegmentRegenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Segment"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rewrite_script_regenerate_script_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScriptRewriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Script"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rewrite_reason_lines_regenerate_reason_lines_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReasonLinesRewriteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReasonLinesRewriteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rephrase_line_regenerate_line_rephrase_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRephraseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineRephraseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_line_regenerate_line_regenerate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRegenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineRegenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    regenerate_section_regenerate_section_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description API Key for request authorization */
+                "X-API-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SectionRegenerateRequest"];
             };
         };
         responses: {

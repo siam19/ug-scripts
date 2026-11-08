@@ -155,3 +155,82 @@ Built a dedicated, testable state engine implementing the 5 core invariants from
 1. **TypeScript Typecheck (`tsc -b`)**: 0 errors.
 2. **Production Bundle Build (`vite build`)**: Built in ~499ms with 0 errors.
 3. **Linter (`oxlint`)**: 0 errors, 0 warnings across all 29 files.
+
+---
+
+## Log Entry: Backend Granular Regeneration Endpoints, Schemas, & Code-Gen Pipeline
+
+**Date**: 2026-11-09  
+**Status**: Completed & Verified (26/26 Python tests passing, TypeScript build & lint passing with 0 errors)
+
+---
+
+### 1. Pydantic Data Models & Contracts (`apps/api/schemas.py`)
+- **Shared Context Models**: Added `ReasonInfo`, `ScriptLineContext`, and `RewrittenLine`.
+- **Segment Regeneration Models**: Added `SegmentRegenerateRequest` with `facts`, `current_segment`, and `existing_segment_names`.
+- **Script Rewrite Models**: Added `ScriptRewriteRequest` for full script rewrites.
+- **Reason Line-Group Models**: Added `ReasonLinesRewriteRequest` and `ReasonLinesRewriteResponse`.
+- **Single Line Models**: Added `LineRephraseRequest`, `LineRephraseResponse`, `LineRegenerateRequest`, and `LineRegenerateResponse`.
+- **Section Streaming Models**: Added `SlotConfig` with `keep_segment: bool` and `SectionRegenerateRequest`.
+- **Language Typing**: Enforced `language: Literal["en", "bn"]` across all request models.
+
+### 2. Prompt Engineering & Strict Language Enforcement (`apps/api/prompts.py`)
+- **Shared `LANGUAGE_BLOCK`**: Enforced proper Bengali script (`বাংলা`) without English or Banglish transliterations when `language == "bn"`.
+- **Dedicated Prompts**: Created `REGENERATE_SEGMENT_PROMPT`, `REWRITE_SCRIPT_PROMPT`, `REWRITE_REASON_LINES_PROMPT`, `REPHRASE_LINE_PROMPT` (with tone mappings), and `REGENERATE_LINE_PROMPT`.
+- **Helper Utilities**: Added `get_language_block`, `format_facts_text`, `format_script_context`, and `format_avoid_tones`.
+
+### 3. FastAPI Regeneration Endpoints (`apps/api/main.py`)
+- **`POST /regenerate/segment`**: Generates a distinct customer segment persona differing from all existing segments.
+- **`POST /regenerate/script`**: Generates a complete script for a target segment with contiguous rationale line citations.
+- **`POST /regenerate/reason-lines`**: Rewrites lines cited by a marketing technique while preserving surrounding narrative flow.
+- **`POST /regenerate/line/rephrase`**: Rephrases a single sentence into an alternative tone (`punchy`, `casual`, `authentic`, `direct`) while maintaining subject and object.
+- **`POST /regenerate/line/regenerate`**: Replaces a single line with a fresh angle matching its kind (`hook`, `concept`, `cta`).
+- **`POST /regenerate/section`**: SSE streaming endpoint running fact updates; preserves hand-edited segments (`keep_segment == True`) and parallelizes script rewrites.
+
+### 4. Automated Testing Suite (`apps/api/tests/test_regenerate.py`)
+- Created 10 new test cases covering authorization (401), validation (422), upstream AI handling, Bangla language retention, and SSE event streaming.
+- Full test suite passed: **26 passed in 1.24s** (100% pass rate).
+
+### 5. OpenAPI Dump & Type Synchronization (`packages/api-types`)
+- Dumped `apps/api/openapi.json` from the updated FastAPI instance.
+- Generated TypeScript types into `packages/api-types/src/schema.d.ts` and re-exported clean type aliases in `packages/api-types/src/index.ts`.
+
+### 6. Frontend Hook Integration (`apps/web/src/hooks/useRegenerate.ts`)
+- Replaced mock stubs with real, typed HTTP `fetch` calls to the `/regenerate/*` endpoints with API key authentication.
+- Verified that `tsc -b && vite build` and `oxlint` pass with **0 errors and 0 warnings**.
+
+---
+
+## Log Entry: Removal of Fallback Simulations, Direct UI Error Reporting, & Toast Dismissal
+
+**Date**: 2026-11-09  
+**Status**: Completed & Verified (26/26 Python tests passing, TypeScript build & lint passing with 0 errors)
+
+---
+
+### 1. Fallback Simulation Code Removal (`apps/web/src/hooks/useRegenerate.ts`)
+- **Removed Mocks & Delays**: Completely eliminated hardcoded mock variations (`variationsEn`, `variationsBn`, `toneVariantsEn`, `toneVariantsBn`) and artificial `setTimeout` fallbacks across all 5 regenerator functions (`regenerateSegment`, `rewriteReasonLines`, `rephraseLine`, `regenerateLine`, `rewriteScript`).
+- **Direct Error Throwing**: Updated `postJson` to catch fetch connection failures and throw descriptive user-facing errors (`"Cannot connect to API server at ..."`), as well as parse and surface backend HTTP error details (`res.json().detail`).
+- **Context Options**: Enhanced hooks with optional parameters for `fullScript`, `targetLineIds`, `scriptContext`, `lineId`, and `avoidTones` to maximize prompt context sent to the backend.
+
+### 2. UI Pending State Recovery (`apps/web/src/state/workspace.ts` & `apps/web/src/state/types.ts`)
+- Added dedicated failure actions to ensure UI buttons and indicators never get stuck spinning on error:
+  - `REPLACE_SEGMENT_FAIL`: Resets `slot.pending = false`.
+  - `REWRITE_SCRIPT_FAIL`: Resets `slot.script.pending = false`.
+  - `REWRITE_REASON_FAIL`: Resets `reason.pending = false` and clears group-level pending flags.
+  - `LINE_ACTION_FAIL`: Resets `line.pending = undefined`.
+- Added `pending?: boolean` to `ReasonItem` in `apps/web/src/state/types.ts` for reliable pending tracking across reason group operations.
+
+### 3. Toast Notifications & Close Button (`apps/web/src/components/ToastHost.tsx` & `apps/web/src/App.css`)
+- **Dismiss (X) Button**: Added a dedicated cross icon (`IconX` from `@tabler/icons-react`) to all toast notifications allowing users to close lingering toasts on demand.
+- **Refined Lifetimes**: Reduced linger durations for responsive feel (4s for standard notifications, 6s for error alerts, 7s for undoable actions).
+- **Error Toasts**: Supported `isError?: boolean` with `role="alert"` and `aria-live="assertive"` styling using design system tokens (`--err-ink`, `--err-line`).
+
+### 4. Results View Error Plumbing (`apps/web/src/components/ResultsView.tsx`)
+- Wrapped all mutation triggers (`handleSegmentRefresh`, `handleRewriteScript`, `handleReasonRefresh`, `handleRephrase`, `handleRegenerateLine`) in `try ... catch` blocks that dispatch their respective failure action on error and pop an error toast displaying the actual failure reason.
+- Forwarded full workspace metadata (`name`, `market`, `language`) into `useRegenerate(meta)`.
+
+### 5. Verification
+- `bun run --cwd apps/web build`: Built cleanly with 0 TypeScript errors.
+- `bun run --cwd apps/web lint`: 0 warnings, 0 errors across all 29 files.
+- `pytest apps/api/tests/`: 26 passed in 1.26s.
