@@ -10,6 +10,7 @@
     "dev:web": "bun --filter web dev",
     "build:web": "bun --filter web build",
     "lint:web": "bun --filter web lint",
-    "gen:types": "bun --filter api-types gen"
+    "gen:types": "bun --filter api-types gen",
+    "test:api": "cd apps/api && .venv/bin/pytest -v"
   }
 }
