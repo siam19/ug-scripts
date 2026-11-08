@@ -1,18 +1,41 @@
 // apps/web/src/hooks/useGenerateScript.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { GenerateResponse } from 'api-types';
+import type { ProgressiveGenerateResponse, Script, Segment } from 'api-types';
 import type { FormValues } from '../types/form';
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const API_KEY: string = import.meta.env.VITE_API_KEY ?? '';
 const TIMEOUT_MS = 90_000;
 
-export type Status = 'idle' | 'loading' | 'success' | 'error';
+export type Status = 'idle' | 'loading' | 'streaming' | 'success' | 'error';
 
 export interface FriendlyError {
   title: string;
   message: string;
 }
+
+interface SegmentsEvent {
+  event: 'segments';
+  facts: string[];
+  segments: Segment[];
+}
+
+interface ScriptEvent {
+  event: 'script';
+  index: number;
+  script: Script;
+}
+
+interface DoneEvent {
+  event: 'done';
+}
+
+interface ErrorEvent {
+  event: 'error';
+  detail: string;
+}
+
+type StreamEvent = SegmentsEvent | ScriptEvent | DoneEvent | ErrorEvent;
 
 const TIMEOUT_ERROR: FriendlyError = {
   title: 'This took too long',
@@ -71,21 +94,9 @@ function errorForStatus(status: number, detail?: string): FriendlyError {
   }
 }
 
-function isGenerateResponse(value: unknown): value is GenerateResponse {
-  const v = value as Partial<GenerateResponse> | null;
-  return (
-    !!v &&
-    Array.isArray(v.facts) &&
-    Array.isArray(v.segments) &&
-    Array.isArray(v.scripts) &&
-    v.segments.length > 0 &&
-    v.scripts.length > 0
-  );
-}
-
 export function useGenerateScript() {
   const [status, setStatus] = useState<Status>('idle');
-  const [data, setData] = useState<GenerateResponse | null>(null);
+  const [data, setData] = useState<ProgressiveGenerateResponse | null>(null);
   const [error, setError] = useState<FriendlyError | null>(null);
   const [runId, setRunId] = useState(0);
 
@@ -111,6 +122,7 @@ export function useGenerateScript() {
     setStatus('loading');
     setError(null);
     setData(null);
+    setRunId((n) => n + 1);
 
     // Let the browser set the multipart boundary: do not set Content-Type.
     const body = new FormData();
@@ -122,9 +134,12 @@ export function useGenerateScript() {
     body.append('image', values.image);
 
     try {
-      const res = await fetch(`${API_URL}/generate`, {
+      const res = await fetch(`${API_URL}/generate-stream`, {
         method: 'POST',
-        headers: { 'X-API-Key': API_KEY },
+        headers: {
+          'X-API-Key': API_KEY,
+          'Accept': 'text/event-stream',
+        },
         body,
         signal: ctrl.signal,
       });
@@ -139,16 +154,67 @@ export function useGenerateScript() {
         return;
       }
 
-      const json: unknown = await res.json();
-      if (!isGenerateResponse(json)) {
+      const reader = res.body?.getReader();
+      if (!reader) {
         setError(BAD_RESPONSE_ERROR);
         setStatus('error');
         return;
       }
 
-      setData(json);
-      setRunId((n) => n + 1);
-      setStatus('success');
+      let gotDone = false;
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split(/\r?\n\r?\n/);
+        buffer = parts.pop() ?? '';
+
+        for (const part of parts) {
+          const lines = part.split(/\r?\n/);
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
+              const payload = JSON.parse(jsonStr) as StreamEvent;
+
+              if (payload.event === 'segments') {
+                setData({
+                  facts: payload.facts,
+                  segments: payload.segments,
+                  scripts: new Array<Script | null>(payload.segments.length).fill(null),
+                });
+                setStatus('streaming');
+              } else if (payload.event === 'script') {
+                setData((prev) => {
+                  if (!prev) return prev;
+                  const nextScripts = [...prev.scripts];
+                  nextScripts[payload.index] = payload.script;
+                  return { ...prev, scripts: nextScripts };
+                });
+              } else if (payload.event === 'done') {
+                gotDone = true;
+                setStatus('success');
+              } else if (payload.event === 'error') {
+                setError({
+                  title: 'The AI service encountered an error',
+                  message: payload.detail || 'An unexpected error occurred during generation.',
+                });
+                setStatus('error');
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      if (!gotDone) {
+        setError(BAD_RESPONSE_ERROR);
+        setStatus('error');
+      }
     } catch {
       // Aborted because a newer request replaced this one (or on unmount): stay quiet.
       if (ctrl.signal.aborted && !timedOut) return;

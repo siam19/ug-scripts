@@ -126,3 +126,88 @@ def test_generate_handles_upstream_vertex_ai_error(client, valid_form_data, samp
 
         assert response.status_code == 502
         assert "Vertex AI generation error" in response.json()["detail"]
+
+
+def test_generate_stream_pipeline_success(client, valid_form_data, sample_png_bytes, valid_headers):
+    """
+    Verifies that POST /generate-stream returns a text/event-stream response and
+    progressively yields Stage 1 segments followed by each completed script and 'done'.
+    """
+    import json
+
+    mock_segs = mock_segments_data()
+
+    async def fake_ask(prompt, schema, parts=(), max_retries=1):
+        if schema == Segments:
+            return mock_segs
+        elif schema == Script:
+            return mock_script_data("Desk Workers")
+        raise ValueError(f"Unexpected schema: {schema}")
+
+    with patch("main.ask_gemini", side_effect=fake_ask) as patched_ask:
+        files = {"image": ("test.png", io.BytesIO(sample_png_bytes), "image/png")}
+        response = client.post("/generate-stream", data=valid_form_data, files=files, headers=valid_headers)
+
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+
+        events = []
+        for line in response.text.split("\n"):
+            line = line.strip()
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+
+        assert len(events) == 5  # 1 segments + 3 scripts + 1 done
+
+        # First event is segments
+        assert events[0]["event"] == "segments"
+        assert len(events[0]["facts"]) == 5
+        assert len(events[0]["segments"]) == 3
+
+        # Next 3 events are scripts
+        script_events = events[1:4]
+        script_indices = set()
+        for se in script_events:
+            assert se["event"] == "script"
+            script_indices.add(se["index"])
+            assert "script" in se
+            assert len(se["script"]["lines"]) == 4
+
+        assert script_indices == {0, 1, 2}
+
+        # Last event is done
+        assert events[4]["event"] == "done"
+        assert patched_ask.call_count == 4
+
+
+def test_generate_stream_handles_upstream_vertex_ai_error(client, valid_form_data, sample_png_bytes, valid_headers):
+    """
+    Verifies that upstream errors during streaming yield an SSE error event.
+    """
+    import json
+
+    with patch("main.ask_gemini", side_effect=Exception("Vertex AI Stream Error")):
+        files = {"image": ("test.png", io.BytesIO(sample_png_bytes), "image/png")}
+        response = client.post("/generate-stream", data=valid_form_data, files=files, headers=valid_headers)
+
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers.get("content-type", "")
+
+        events = []
+        for line in response.text.split("\n"):
+            line = line.strip()
+            if line.startswith("data: "):
+                events.append(json.loads(line[6:]))
+
+        assert len(events) == 1
+        assert events[0]["event"] == "error"
+        assert "Vertex AI Stream Error" in events[0]["detail"]
+
+
+def test_generate_stream_missing_api_key_returns_401(client, valid_form_data, sample_png_bytes):
+    """
+    Verifies that authorization check runs before streaming starts and returns HTTP 401.
+    """
+    files = {"image": ("test.png", io.BytesIO(sample_png_bytes), "image/png")}
+    response = client.post("/generate-stream", data=valid_form_data, files=files)
+    assert response.status_code == 401

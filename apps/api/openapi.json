@@ -87,6 +87,66 @@
           }
         }
       }
+    },
+    "/generate-stream": {
+      "post": {
+        "tags": [
+          "Script Generation"
+        ],
+        "summary": "Progressively stream customer segments and generated UGC scripts via SSE",
+        "description": "Progressive SSE Pipeline:\n1. Authenticate request using X-API-Key header.\n2. Validate input constraints (market length, image mime type, file size).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n   -> Yields 'segments' event immediately.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment.\n   -> Yields each 'script' event as soon as its generation completes.\n5. Yields 'done' event when all scripts are generated, or 'error' event on failure.",
+        "operationId": "generate_stream_generate_stream_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "API Key for request authorization",
+              "title": "X-Api-Key"
+            },
+            "description": "API Key for request authorization"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_generate_stream_generate_stream_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -139,6 +199,55 @@
           "image"
         ],
         "title": "Body_generate_generate_post"
+      },
+      "Body_generate_stream_generate_stream_post": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Detailed product description"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market country or region (e.g., 'Bangladesh')"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Desired script language: 'en' for English or 'bn' for Bangla"
+          },
+          "image": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Image",
+            "description": "Product image file (JPEG, PNG, or WebP, max 5 MB)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "category",
+          "market",
+          "language",
+          "image"
+        ],
+        "title": "Body_generate_stream_generate_stream_post"
       },
       "GenerateResponse": {
         "properties": {

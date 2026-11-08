@@ -45,7 +45,7 @@ export default function App() {
       </header>
 
       <section className="hero">
-        <h1>Three ready-to-film scripts from one product photo.</h1>
+        <h1>UG-Scripts</h1>
         <p>
           Describe the product, add its photo, and get three customer segments with a
           phone-ready UGC ad script for each.
@@ -56,7 +56,7 @@ export default function App() {
         values={values}
         onChange={patch}
         onSubmit={handleSubmit}
-        submitting={status === 'loading'}
+        submitting={status === 'loading' || status === 'streaming'}
       />
 
       <section ref={outputRef} className="output" aria-label="Generated scripts">
@@ -70,13 +70,13 @@ export default function App() {
           </div>
         )}
 
-        {status === 'loading' && <LoadingState />}
+        {status === 'loading' && !data && <LoadingState />}
 
         {status === 'error' && error && (
           <ErrorBanner error={error} onRetry={handleRetry} onDismiss={clearError} />
         )}
 
-        {status === 'success' && data && <ResultsView key={runId} data={data} />}
+        {data && <ResultsView key={runId} data={data} isStreaming={status === 'streaming'} />}
       </section>
     </div>
   );

@@ -1,6 +1,7 @@
 // apps/web/src/components/ScriptCard.tsx
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LineKind, Script } from 'api-types';
+import { IconCopy, IconCheck } from '@tabler/icons-react';
 
 const SECONDS_PER_WORD = 0.4; // roughly 2.5 spoken words per second
 const HOOK_WINDOW_SECONDS = 3;
@@ -106,7 +107,17 @@ export function ScriptCard({
           className={`btn btn-quiet${copied ? ' is-done' : ''}`}
           onClick={handleCopy}
         >
-          {copied ? 'Copied!' : 'Copy script'}
+          {copied ? (
+            <>
+              <IconCheck size={16} aria-hidden="true" />
+              <span>Copied!</span>
+            </>
+          ) : (
+            <>
+              <IconCopy size={16} aria-hidden="true" />
+              <span>Copy script</span>
+            </>
+          )}
         </button>
       </header>
 

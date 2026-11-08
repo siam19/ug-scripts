@@ -447,6 +447,9 @@
 }
 
 .section-head h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-size: 1.375rem;
   line-height: 1.2;
@@ -454,6 +457,42 @@
 .section-head p {
   margin-top: 4px;
   color: var(--ink-2);
+}
+
+.section-title-icon {
+  flex: none;
+  color: var(--rec);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chip-animated {
+  animation: popIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.tab-animated {
+  animation: popIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.segment-section-animated {
+  animation: popIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip-animated,
+  .tab-animated,
+  .segment-section-animated {
+    animation: none;
+  }
 }
 
 .chip-list {
@@ -476,6 +515,10 @@
   gap: 10px;
 }
 .tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 14px 16px;
   text-align: left;
   background: transparent;
@@ -496,6 +539,36 @@
   color: #fff;
 }
 
+.tab-status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--rec);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.script-skeleton-card {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  background: var(--card);
+  border: 1px dashed var(--line-strong);
+  border-radius: 20px;
+}
+
+.script-skeleton-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.script-skeleton-head h3 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
 .tab-panel {
   display: grid;
   gap: 20px;
@@ -512,9 +585,17 @@
   align-content: start;
 }
 .segment-main h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-size: 1.5rem;
   line-height: 1.15;
+}
+
+.segment-title-icon {
+  flex: none;
+  color: var(--rec);
 }
 .segment-who {
   max-width: 60ch;
@@ -563,6 +644,9 @@
 
 .script-card h3,
 .reasons h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-family: var(--font-display);
   font-size: 1.25rem;
   line-height: 1.2;

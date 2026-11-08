@@ -1,5 +1,5 @@
 // apps/web/src/components/ProductForm.tsx
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -57,19 +57,57 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
     };
   }, [previewUrl]);
 
-  function acceptFile(file: File | undefined) {
-    if (!file) return;
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      setImageError('Use a JPEG, PNG or WebP image.');
-      return;
+  const acceptFile = useCallback(
+    (file: File | undefined) => {
+      if (!file) return;
+      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+        setImageError('Use a JPEG, PNG or WebP image.');
+        return;
+      }
+      if (file.size > MAX_IMAGE_BYTES) {
+        setImageError(`That image is ${formatBytes(file.size)}. The limit is 5 MB.`);
+        return;
+      }
+      setImageError(null);
+      onChange({ image: file });
+    },
+    [onChange],
+  );
+
+  // Listen for Ctrl+V / Cmd+V paste events containing image data
+  useEffect(() => {
+    function handlePaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          if (item.type.startsWith('image/')) {
+            const file = item.getAsFile();
+            if (file) {
+              e.preventDefault();
+              acceptFile(file);
+              return;
+            }
+          }
+        }
+      }
+
+      const files = e.clipboardData?.files;
+      if (files && files.length > 0) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          if (file.type.startsWith('image/')) {
+            e.preventDefault();
+            acceptFile(file);
+            return;
+          }
+        }
+      }
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setImageError(`That image is ${formatBytes(file.size)}. The limit is 5 MB.`);
-      return;
-    }
-    setImageError(null);
-    onChange({ image: file });
-  }
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [acceptFile]);
 
   function handleFileInput(e: ChangeEvent<HTMLInputElement>) {
     acceptFile(e.target.files?.[0]);
@@ -242,7 +280,7 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
               onDrop={handleDrop}
             >
               <strong>Drop the product photo here</strong>
-              <span>or choose a file</span>
+              <span>choose a file, or paste with Ctrl+V</span>
               <span className="hint">JPEG, PNG or WebP, up to 5 MB</span>
             </label>
           )}

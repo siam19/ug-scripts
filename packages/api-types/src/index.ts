@@ -10,4 +10,10 @@ export type Line = components['schemas']['Line'];
 export type Reason = components['schemas']['Reason'];
 export type LineKind = components['schemas']['Line']['kind'];
 
+export interface ProgressiveGenerateResponse {
+  facts: string[];
+  segments: Segment[];
+  scripts: (Script | null)[];
+}
+
 export type { components, paths };
