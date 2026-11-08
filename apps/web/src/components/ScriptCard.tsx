@@ -1,25 +1,20 @@
-// apps/web/src/components/ScriptCard.tsx
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { LineKind, Script } from 'api-types';
-import { IconCopy, IconCheck } from '@tabler/icons-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { LineKind } from 'api-types';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
+import {
+  countWords,
+  formatTime,
+  getVisibleLineItems,
+  SECONDS_PER_WORD,
+} from '../state/script-tree';
+import type { ResolvedLineItem } from '../state/script-tree';
+import type { ScriptDoc, Uid } from '../state/types';
+import { LineTombstone, ScriptLine } from './ScriptLine';
+import type { LineView } from './ScriptLine';
+import { VersionRail } from './VersionRail';
+import type { ScopeVersion } from './VersionRail';
 
-const SECONDS_PER_WORD = 0.4; // roughly 2.5 spoken words per second
 const HOOK_WINDOW_SECONDS = 3;
-
-const KIND_LABEL: Record<LineKind, string> = {
-  hook: 'Hook',
-  concept: 'Concept',
-  cta: 'Call to action',
-};
-
-function countWords(text: string): number {
-  return text.trim().split(/\s+/).filter(Boolean).length;
-}
-
-function mmss(seconds: number): string {
-  const total = Math.round(seconds);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
 
 async function copyToClipboard(text: string): Promise<void> {
   try {
@@ -38,24 +33,49 @@ async function copyToClipboard(text: string): Promise<void> {
 }
 
 interface Props {
-  script: Script;
-  /** Line ids highlighted because a reason is hovered or pinned. */
-  litLineIds: ReadonlySet<number>;
-  hoveredLineId: number | null;
-  /** True while a reason is active, so unrelated lines can fade back. */
+  doc: ScriptDoc;
+  scope: ScopeVersion | null;
+  selectedLineUid: Uid | null;
+  litLineUids: ReadonlySet<Uid>;
+  hoveredLineUid: Uid | null;
   reasonFocused: boolean;
-  onLineHover: (id: number | null) => void;
+  recentlyChangedUids?: ReadonlySet<Uid>;
+  onLineHover: (uid: Uid | null) => void;
+  onLineSelect: (uid: Uid | null) => void;
+  onEditLine: (uid: Uid, text: string) => void;
+  onRephraseLine: (uid: Uid) => void;
+  onRegenerateLine: (uid: Uid) => void;
+  onUndoLine: (uid: Uid) => void;
+  onRedoLine: (uid: Uid) => void;
+  onDeleteLine: (uid: Uid) => void;
+  onStepScope: (delta: -1 | 1) => void;
 }
 
 export function ScriptCard({
-  script,
-  litLineIds,
-  hoveredLineId,
+  doc,
+  scope,
+  selectedLineUid,
+  litLineUids,
+  hoveredLineUid,
   reasonFocused,
+  recentlyChangedUids = new Set(),
   onLineHover,
+  onLineSelect,
+  onEditLine,
+  onRephraseLine,
+  onRegenerateLine,
+  onUndoLine,
+  onRedoLine,
+  onDeleteLine,
+  onStepScope,
 }: Props) {
   const [copied, setCopied] = useState(false);
   const copyTimer = useRef<number | null>(null);
+  const cardRef = useRef<HTMLElement>(null);
+  const [railTopY, setRailTopY] = useState<number | null>(null);
+
+  // Live draft map from typing in textareas
+  const [drafts, setDrafts] = useState<Record<Uid, string>>({});
 
   useEffect(
     () => () => {
@@ -64,42 +84,163 @@ export function ScriptCard({
     [],
   );
 
-  const timed = useMemo(() => {
-    const lines = [...script.lines].sort((a, b) => a.id - b.id);
-    let cursor = 0;
-    let totalWords = 0;
-    const rows: { line: typeof lines[number]; words: number; duration: number; start: number }[] = [];
-    for (const line of lines) {
-      const words = countWords(line.text);
+  function handleDraft(uid: Uid, text: string | null) {
+    setDrafts((prev) => {
+      if (text === null) {
+        const next = { ...prev };
+        delete next[uid];
+        return next;
+      }
+      return { ...prev, [uid]: text };
+    });
+  }
+
+  // Derive visible lines & timing
+  const { lineViews, totalWords, totalSeconds, timelineRows } = useMemo(() => {
+    const rawItems: ResolvedLineItem[] = getVisibleLineItems(doc);
+    let cursorTime = 0;
+    let wordSum = 0;
+    let displayNo = 1;
+
+    const views: LineView[] = [];
+    const tlRows: { id: Uid; kind: LineKind; duration: number }[] = [];
+
+    for (const item of rawItems) {
+      if (item.isDeleted) {
+        continue;
+      }
+
+      const activeText = drafts[item.node.uid] ?? item.version.text ?? '';
+      const words = countWords(activeText);
       const duration = Math.max(words * SECONDS_PER_WORD, 0.8);
-      rows.push({ line, words, duration, start: cursor });
-      cursor += duration;
-      totalWords += words;
+      const startTime = cursorTime;
+
+      cursorTime += duration;
+      wordSum += words;
+
+      views.push({
+        uid: item.node.uid,
+        kind: item.node.kind,
+        text: activeText,
+        no: displayNo++,
+        time: formatTime(startTime),
+        version: {
+          index: item.node.cursor,
+          count: item.node.versions.length,
+          label: `${item.version.label}${item.version.detail ? ` · ${item.version.detail}` : ''}`,
+        },
+        canUndo: item.node.cursor > 0,
+        canRedo: item.node.cursor < item.node.versions.length - 1,
+        undoHint:
+          item.node.cursor > 0
+            ? item.node.versions[item.node.cursor - 1]?.label
+            : undefined,
+        pending: item.node.pending,
+      });
+
+      tlRows.push({
+        id: item.node.uid,
+        kind: item.node.kind,
+        duration,
+      });
     }
+
     return {
-      rows,
-      total: cursor,
-      words: totalWords,
+      lineViews: views,
+      totalWords: wordSum,
+      totalSeconds: cursorTime,
+      timelineRows: tlRows,
     };
-  }, [script.lines]);
+  }, [doc, drafts]);
+
+  const canDelete = lineViews.length > 1;
+
+  // Dynamic vertical centering for VersionRail chevrons aligned with active selection
+  useLayoutEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    function updateRailPosition() {
+      if (!card) return;
+      const cardRect = card.getBoundingClientRect();
+      if (cardRect.height === 0) return;
+
+      let targetCenterY: number | null = null;
+
+      if (selectedLineUid) {
+        const selectedEl = card.querySelector<HTMLElement>(`[data-line-uid="${selectedLineUid}"]`);
+        if (selectedEl) {
+          const elRect = selectedEl.getBoundingClientRect();
+          targetCenterY = elRect.top + elRect.height / 2 - cardRect.top;
+        }
+      } else if (litLineUids.size > 0) {
+        const litEls = Array.from(card.querySelectorAll<HTMLElement>('.line.is-lit'));
+        if (litEls.length > 0) {
+          const first = litEls[0].getBoundingClientRect();
+          let minTop = first.top;
+          let maxBottom = first.bottom;
+          for (let i = 1; i < litEls.length; i++) {
+            const rect = litEls[i].getBoundingClientRect();
+            if (rect.top < minTop) minTop = rect.top;
+            if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+          }
+          targetCenterY = minTop + (maxBottom - minTop) / 2 - cardRect.top;
+        }
+      }
+
+      if (targetCenterY !== null) {
+        const clamped = Math.max(28, Math.min(targetCenterY, cardRect.height - 28));
+        setRailTopY(clamped);
+      } else {
+        setRailTopY(cardRect.height / 2);
+      }
+    }
+
+    updateRailPosition();
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateRailPosition();
+    });
+    resizeObserver.observe(card);
+
+    window.addEventListener('resize', updateRailPosition);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', updateRailPosition);
+    };
+  }, [selectedLineUid, litLineUids, lineViews]);
 
   async function handleCopy() {
-    const text = timed.rows.map((r) => r.line.text).join('\n\n');
+    const text = lineViews.map((r) => r.text).join('\n\n');
     await copyToClipboard(text);
     setCopied(true);
     if (copyTimer.current) window.clearTimeout(copyTimer.current);
     copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
   }
 
-  const tickPercent = Math.min(HOOK_WINDOW_SECONDS / (timed.total || 1), 1) * 100;
+  const tickPercent = Math.min(HOOK_WINDOW_SECONDS / (totalSeconds || 1), 1) * 100;
 
   return (
-    <article className="panel script-card">
+    <article className="panel script-card" ref={cardRef}>
+      <VersionRail
+        scope={scope}
+        disabled={doc.pending}
+        topOffset={railTopY}
+        onStep={onStepScope}
+      />
+
       <header className="script-head">
         <div>
-          <h3>Script</h3>
+          <h3>
+            <span>Script</span>
+            {scope?.type === 'script' && (
+              <span className="hint" style={{ fontSize: '0.875rem', fontWeight: 500 }}>
+                ({scope.label})
+              </span>
+            )}
+          </h3>
           <p className="hint">
-            About {Math.round(timed.total)} seconds spoken, {timed.words} words
+            About {Math.round(totalSeconds)} seconds spoken, {totalWords} words
           </p>
         </div>
         <button
@@ -123,13 +264,15 @@ export function ScriptCard({
 
       <div className="timeline-wrap">
         <div className="timeline" aria-hidden="true">
-          {timed.rows.map(({ line, duration }) => (
+          {timelineRows.map(({ id, kind, duration }) => (
             <span
-              key={line.id}
+              key={id}
               className={`tl-seg${
-                litLineIds.has(line.id) || hoveredLineId === line.id ? ' is-on' : ''
+                litLineUids.has(id) || hoveredLineUid === id || selectedLineUid === id
+                  ? ' is-on'
+                  : ''
               }`}
-              data-kind={line.kind}
+              data-kind={kind}
               style={{ flexGrow: duration }}
             />
           ))}
@@ -140,37 +283,43 @@ export function ScriptCard({
       </div>
 
       <ol className="lines">
-        {timed.rows.map(({ line, start }) => {
-          const lit = litLineIds.has(line.id);
-          const cls = [
-            'line',
-            lit ? 'is-lit' : '',
-            reasonFocused && !lit ? 'is-dim' : '',
-            hoveredLineId === line.id ? 'is-hover' : '',
-          ]
-            .filter(Boolean)
-            .join(' ');
+        {getVisibleLineItems(doc).map((item) => {
+          if (item.isDeleted) {
+            return (
+              <LineTombstone
+                key={item.node.uid}
+                onUndo={() => onUndoLine(item.node.uid)}
+              />
+            );
+          }
+
+          const view = lineViews.find((v) => v.uid === item.node.uid);
+          if (!view) return null;
+
+          const lit = litLineUids.has(view.uid);
+          const isSelected = selectedLineUid === view.uid;
 
           return (
-            <li
-              key={line.id}
-              className={cls}
-              data-kind={line.kind}
-              tabIndex={0}
-              onMouseEnter={() => onLineHover(line.id)}
-              onMouseLeave={() => onLineHover(null)}
-              onFocus={() => onLineHover(line.id)}
-              onBlur={() => onLineHover(null)}
-            >
-              <div className="ln-gutter">
-                <span className="ln-id">{line.id}</span>
-                <span className="ln-time">{mmss(start)}</span>
-              </div>
-              <div className="ln-body">
-                <span className="kind">{KIND_LABEL[line.kind] ?? line.kind}</span>
-                <p className="ln-text">{line.text}</p>
-              </div>
-            </li>
+            <ScriptLine
+              key={view.uid}
+              line={view}
+              selected={isSelected}
+              lit={lit}
+              dim={reasonFocused && !lit && !isSelected}
+              hovered={hoveredLineUid === view.uid}
+              flash={recentlyChangedUids.has(view.uid)}
+              canDelete={canDelete}
+              onSelect={(uid) => onLineSelect(selectedLineUid === uid ? null : uid)}
+              onHover={onLineHover}
+              onDraft={handleDraft}
+              onEdit={onEditLine}
+              onRephrase={onRephraseLine}
+              onRegenerate={onRegenerateLine}
+              onUndo={onUndoLine}
+              onRedo={onRedoLine}
+              onDelete={onDeleteLine}
+              onStep={(_uid, delta) => onStepScope(delta)}
+            />
           );
         })}
       </ol>

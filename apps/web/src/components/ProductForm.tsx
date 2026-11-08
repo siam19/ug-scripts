@@ -1,5 +1,5 @@
 // apps/web/src/components/ProductForm.tsx
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -43,19 +43,20 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
   );
   const [dragging, setDragging] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Thumbnail preview derived from values.image; object URLs revoked on change or unmount.
-  const previewUrl = useMemo(() => {
-    if (!values.image) return null;
-    return URL.createObjectURL(values.image);
-  }, [values.image]);
-
+  // Thumbnail preview derived from values.image; created and revoked in effect
   useEffect(() => {
+    if (!values.image) return;
+    const url = URL.createObjectURL(values.image);
+    // oxlint-disable-next-line react/set-state-in-effect
+    setPreviewUrl(url);
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      URL.revokeObjectURL(url);
+      setPreviewUrl(null);
     };
-  }, [previewUrl]);
+  }, [values.image]);
 
   const acceptFile = useCallback(
     (file: File | undefined) => {

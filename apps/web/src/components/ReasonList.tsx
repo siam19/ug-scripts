@@ -1,58 +1,55 @@
-// apps/web/src/components/ReasonList.tsx
-import type { Line, Reason } from 'api-types';
+import { ReasonItem } from './ReasonItem';
+import type { ReasonRef } from './ReasonItem';
+
+export interface ReasonDisplayItem {
+  uid: string;
+  title: string;
+  why: string;
+  refs: ReasonRef[];
+  orphan: boolean;
+  pending?: boolean;
+}
 
 interface Props {
-  reasons: Reason[];
-  lines: Line[];
-  /** Reason indexes to highlight (hovered/pinned reason, or reasons citing a hovered line). */
+  items: ReasonDisplayItem[];
   litIndexes: ReadonlySet<number>;
   pinnedIndex: number | null;
   onHover: (index: number | null) => void;
   onPin: (index: number) => void;
+  onRefresh: (reasonUid: string) => void;
 }
 
 export function ReasonList({
-  reasons,
-  lines,
+  items,
   litIndexes,
   pinnedIndex,
   onHover,
   onPin,
+  onRefresh,
 }: Props) {
-  const kindById = new Map(lines.map((l) => [l.id, l.kind]));
-
   return (
     <aside className="panel reasons">
       <h3>Why this script should work</h3>
       <p className="hint">
-        Hover or select a reason to light up the lines it points to. This is the
-        model&rsquo;s reasoning for how the script is built, not measured performance.
+        Hover or select a reason to light up the lines it points to. Click the refresh
+        icon on a technique to rewrite its associated lines.
       </p>
 
       <ul className="reason-list">
-        {reasons.map((reason, i) => (
-          <li key={`${reason.title}-${i}`}>
-            <button
-              type="button"
-              className={`reason${litIndexes.has(i) ? ' is-lit' : ''}`}
-              aria-pressed={pinnedIndex === i}
-              onMouseEnter={() => onHover(i)}
-              onMouseLeave={() => onHover(null)}
-              onFocus={() => onHover(i)}
-              onBlur={() => onHover(null)}
-              onClick={() => onPin(i)}
-            >
-              <span className="reason-title">{reason.title}</span>
-              <span className="reason-why">{reason.why}</span>
-              <span className="reason-lines">
-                {reason.line_ids.map((id) => (
-                  <span key={id} className="line-ref" data-kind={kindById.get(id)}>
-                    Line {id}
-                  </span>
-                ))}
-              </span>
-            </button>
-          </li>
+        {items.map((item, i) => (
+          <ReasonItem
+            key={item.uid}
+            title={item.title}
+            why={item.why}
+            refs={item.refs}
+            orphan={item.orphan}
+            lit={litIndexes.has(i)}
+            pinned={pinnedIndex === i}
+            pending={Boolean(item.pending)}
+            onHover={(hovering) => onHover(hovering ? i : null)}
+            onPin={() => onPin(i)}
+            onRefresh={() => onRefresh(item.uid)}
+          />
         ))}
       </ul>
     </aside>

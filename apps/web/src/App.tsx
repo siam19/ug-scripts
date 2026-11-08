@@ -1,11 +1,14 @@
 // apps/web/src/App.tsx
 import { useRef, useState } from 'react';
 import './App.css';
+import { IconBookmark } from '@tabler/icons-react';
 import { ProductForm } from './components/ProductForm';
 import { LoadingState } from './components/LoadingState';
 import { ResultsView } from './components/ResultsView';
 import { ErrorBanner } from './components/ErrorBanner';
+import { SavedScriptsDrawer } from './components/SavedScriptsDrawer';
 import { useGenerateScript } from './hooks/useGenerateScript';
+import { useSavedScripts } from './state/saved-scripts';
 import { INITIAL_VALUES } from './types/form';
 import type { FormValues } from './types/form';
 
@@ -13,6 +16,8 @@ export default function App() {
   // Form values live here, so they survive loading, errors and retries.
   const [values, setValues] = useState<FormValues>(INITIAL_VALUES);
   const { status, data, error, runId, generate, retry, clearError } = useGenerateScript();
+  const { savedScripts, remove } = useSavedScripts();
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const outputRef = useRef<HTMLElement>(null);
 
   function patch(update: Partial<FormValues>) {
@@ -41,7 +46,21 @@ export default function App() {
     <div className="shell">
       <header className="masthead">
         <span className="rec-dot" aria-hidden="true" />
-        Script Assistant
+        <span>Script Assistant</span>
+
+        <div className="masthead-actions">
+          <button
+            type="button"
+            className="saved-btn"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <IconBookmark size={16} aria-hidden="true" />
+            <span>Saved scripts</span>
+            {savedScripts.length > 0 && (
+              <span className="saved-count-pill">{savedScripts.length}</span>
+            )}
+          </button>
+        </div>
       </header>
 
       <section className="hero">
@@ -78,6 +97,13 @@ export default function App() {
 
         {data && <ResultsView key={runId} data={data} isStreaming={status === 'streaming'} />}
       </section>
+
+      <SavedScriptsDrawer
+        open={drawerOpen}
+        scripts={savedScripts}
+        onClose={() => setDrawerOpen(false)}
+        onRemove={remove}
+      />
     </div>
   );
 }
