@@ -333,3 +333,31 @@ Built a dedicated, testable state engine implementing the 5 core invariants from
 - `apps/api/.venv/bin/python3 -m pytest apps/api/tests/`: All **28 tests passing**.
 - `bun run --cwd apps/web build`: Built successfully in ~505ms with 0 errors.
 - `bun run --cwd apps/web lint`: 0 warnings, 0 errors across 29 files.
+
+---
+
+## Sprint 2 Wrap-Up: Notes for Future Sprints & Technical Debt
+
+**Date**: 2026-11-10  
+**Context**: Handoff notes detailing architectural constraints, unimplemented items, and ad-hoc solutions introduced during Sprint 2.
+
+---
+
+1. **Language Scope Partitioning**:
+   - Spoken video dialogue lines (`hook`, `concept`, `cta`) are strictly in Bengali (`বাংলা`) when `language == "bn"`.
+   - Customer segments (`name`, `who`, `pain_point`, `platforms`), product facts, and marketing rationale (`reasons: title, why`) must always remain in English. Future multilingual work must adhere to this boundary.
+
+2. **Backend Rate Limiting (`apps/api/rate_limiter.py`)**:
+   - The sliding-window rate limiter (15 req/min) is held entirely in Python process memory.
+   - If deploying multiple workers (`uvicorn --workers > 1`) or container clusters in future sprints, replace the in-memory map with Redis or a shared token bucket.
+
+3. **`POST /regenerate/section` Streaming Endpoint**:
+   - The backend SSE streaming endpoint for multi-slot updates was implemented and tested (`test_regenerate_section_stream`).
+   - The frontend currently invokes parallel `/regenerate/script` calls via `Promise.all` in `handleRegenerateStale`. Wire up the frontend to the SSE stream if real-time multi-segment progressive streaming is required.
+
+4. **Contiguous Reason Citations & Tree Grouping (`workspace.ts`)**:
+   - Reason rewriting wraps replaced lines into a `GroupNode` and augments `cites` with both old and new line UIDs.
+   - Assumes citations cover contiguous blocks. If future sprints introduce disjoint multi-line reason tags, `resolveVisibleCover` and group-wrapping logic will need adjustments.
+
+5. **Transient Draft State vs Version Nodes**:
+   - While editing a line, drafts are held in local state to calculate live duration/word counts without generating premature version history. Version records (`Edited`) are only committed on explicit Save / `Enter`.
