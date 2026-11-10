@@ -234,3 +234,102 @@ Built a dedicated, testable state engine implementing the 5 core invariants from
 - `bun run --cwd apps/web build`: Built cleanly with 0 TypeScript errors.
 - `bun run --cwd apps/web lint`: 0 warnings, 0 errors across all 29 files.
 - `pytest apps/api/tests/`: 26 passed in 1.26s.
+
+---
+
+## Log Entry: Regeneration Feedback Animation, StaleBar Loading States, and Dual-Layer Rate Limiting
+
+**Date**: 2026-11-10  
+**Status**: Completed & Verified (28/28 Python tests passing, TypeScript build & lint passing with 0 errors)
+
+---
+
+### 1. Regeneration Button Feedback & In-Flight State (`StaleBar.tsx` & `ResultsView.tsx`)
+- **Action Loading States**: Extended `StaleAction` with `loading?: boolean`. Prepend an animated spinning icon (`IconRefresh` with CSS spin keyframe) and change the label dynamically:
+  - Facts-level regeneration: Changes from "Regenerate" to "Regenerating…".
+  - Script-level rewrite: Changes from "Rewrite script" to "Rewriting…".
+- **Interaction Locking**: Disables all buttons within the active `StaleBar` (`disabled={busy || isLoading}`) while regeneration is in-flight, preventing duplicate submissions.
+- **Async Await for Stale Slots**: Implemented `handleRegenerateStale` using `Promise.all` across all outdated slots, ensuring `isRegeneratingStale` remains active until all script rewrites complete.
+
+### 2. Script Section Updating Animation (`App.css` & `ResultsView.tsx`)
+- **Pulsing Fade Animation (`.workbench.is-updating`)**: Added `@keyframes workbenchPulse` breathing animation (opacity cycling between `0.95`, `0.42`, `0.85`) combined with `pointer-events: none` and `user-select: none` during regeneration.
+- **Reduced Motion Support**: Added `@media (prefers-reduced-motion: reduce)` override to display a static `0.5` opacity without pulsing.
+- **Post-Update Reveal**: Seamlessly reverts to full opacity with the established 600ms highlight flash when new content arrives.
+
+### 3. Dual-Layer Rate Limiting (Frontend & Backend)
+- **Backend Sliding-Window Rate Limiter (`apps/api/rate_limiter.py` & `apps/api/main.py`)**:
+  - Implemented an in-memory sliding-window log rate limiter tracking request timestamps per client IP / API key.
+  - Enforced a limit of 15 regeneration calls per 60-second window across all 6 `/regenerate/*` endpoints.
+  - Exceeding the threshold returns `HTTP 429 Too Many Requests` with a `Retry-After` header and detail message: `"Slow down. Too many requests in 1 minute. Try again later."`.
+- **Client-Side Anti-Spam Guard (`ResultsView.tsx`)**:
+  - Implemented a 1.2-second burst debounce and a 12-request/minute sliding window check (`isRateLimited`).
+  - Rapid multi-clicks or excessive requests immediately trigger an assertive error toast: `"Slow down. Too many requests in 1 minute. Try again later."`.
+- **429 HTTP Error Catching (`useRegenerate.ts`)**:
+  - `postJson` explicitly intercepts HTTP 429 responses and surfaces the rate-limit warning toast in the UI.
+
+### 4. Verification & Testing
+- **New Unit & Integration Tests (`apps/api/tests/test_rate_limiter.py`)**: Added unit tests for `SlidingWindowRateLimiter` and integration tests verifying HTTP 429 and `Retry-After` header generation.
+- **Test Isolation (`apps/api/tests/conftest.py`)**: Added an autouse fixture resetting rate limiter history before and after each test.
+- `apps/api/.venv/bin/python3 -m pytest apps/api/tests/`: All **28 passed in 1.25s**.
+- `bun run --cwd packages/api-types gen`: OpenAPI spec dumped and TypeScript declarations updated.
+- `bun run --cwd apps/web build`: Built cleanly in ~496ms.
+- `bun run --cwd apps/web lint`: 0 warnings, 0 errors across 29 files.
+
+---
+
+## Log Entry: Reason Marketing Rationale in English, Reason Cites Fix, Selection Management, & Line Edit Fixes
+
+**Date**: 2026-11-10  
+**Status**: Completed & Verified (28/28 Python tests passing, TypeScript build & lint passing with 0 errors)
+
+---
+
+### 1. Marketing Rationale Language Strictness (`apps/api/prompts.py`)
+- **English-Only Rationale**: Updated `LANGUAGE_BLOCK`, `SCRIPT_PROMPT`, and `REWRITE_SCRIPT_PROMPT` to explicitly enforce that the `reasons` array (`title` and `why` technique explanations) must always be written in English, even when video script dialogue, customer personas, and pain points are generated in Bengali (`বাংলা`).
+- Clarified that spoken dialogue must remain in natural conversational Bengali, while marketing technique terminology (pattern interrupt, specificity, social proof, etc.) stays in English.
+
+### 2. Orphaned Reason Cites Repair on Regeneration (`apps/web/src/state/workspace.ts`)
+- **Root Cause**: When a reason was rewritten via the refresh button, the generated `LineNode` instances had new UIDs and were wrapped in a `GroupNode`. Because `reason.cites` only contained the original line UIDs, `resolveVisibleCover` could no longer find active visible nodes in the revision, resulting in `refs.length === 0` and rendering `"All cited lines were removed"`.
+- **Fix**: In `workspaceReducer` (`REWRITE_REASON_SUCCESS`), augmented `cites` with the newly generated line UIDs across the rewritten reason and any overlapping reasons (`cites: Array.from(new Set([...r.cites, ...newUids]))`). This keeps line references linked across versions and prevents false-positive orphan states.
+
+### 3. Reason Selection, Unselection, Visual Differentiation, & Escape Key (`apps/web/src/components/ResultsView.tsx` & `apps/web/src/App.css`)
+- **Direct Selection Toggling**: Updated `onPin` in `ResultsView.tsx` to directly inspect `workspace.selection.kind === 'reason' && workspace.selection.reasonUid === reason.uid`. Clicking the active pinned reason cleanly deselects it (`SELECT_NONE`), while clicking another reason switches the selection.
+- **Visual Disambiguation**: In `App.css`, differentiated pinned reasons (`.reason[aria-pressed='true']`) with a prominent solid ink border and shadow (`border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink);`), while hovered or preview lit reasons (`.reason.is-lit:not([aria-pressed='true'])`) receive a soft border (`--line-strong`) and subtle tint. This ensures users never mistake a hover/preview card for multiple pinned selections.
+- **Escape Key Deselection**: Enhanced the global `Escape` key listener in `ResultsView.tsx` to dispatch `SELECT_NONE`, reset `hoverReasonIndex` and `hoverLineUid` to `null`, and blur the active DOM element.
+
+### 4. Line Item Save Bug Fix & Keybindings (`apps/web/src/components/ScriptLine.tsx` & `apps/web/src/components/ScriptCard.tsx`)
+- **Save Bug Root Cause**: `ScriptCard` passed active drafts down to `ScriptLine` via `line.text = activeText`. When clicking "Save", `finishEdit` evaluated `next !== line.text` to `false` because `line.text` already reflected the draft. As a result, `onEdit` was never called and the draft was discarded upon unmount.
+- **Fix**: In `ScriptLine.tsx`, added `initialText = useRef(line.text)`. `startEdit()` stores the snapshot of `line.text` before editing begins. `finishEdit` compares `next !== initialText.current`, reliably triggering `p.onEdit(line.uid, next)`. In `ScriptCard.tsx`, `onEdit` immediately clears the draft state.
+- **Keybindings Update**:
+  - Pressing `Enter` in the line textarea saves the line.
+  - Pressing `Shift+Enter` inserts a newline.
+  - Pressing `Escape` cancels editing without propagating to the global deselect handler.
+  - Updated editing hint to: `↵ save · Shift+↵ newline · Esc cancel`.
+
+### 5. Verification & Testing
+- `apps/api/.venv/bin/python3 -m pytest apps/api/tests/`: All **28 passed in 1.26s**.
+- `bun run --cwd apps/web build`: Built cleanly with 0 TypeScript errors.
+- `bun run --cwd apps/web lint`: 0 warnings, 0 errors across 29 files.
+
+---
+
+## Log Entry: Click-Outside Line Deselection & Customer Segment English Strictness
+
+**Date**: 2026-11-10  
+**Status**: Completed & Verified (28/28 Python tests passing, TypeScript build & lint passing with 0 errors)
+
+---
+
+### 1. Click-Outside Line Deselection (`apps/web/src/components/ScriptCard.tsx`)
+- **Document Listener**: Added a `pointerdown` listener on `document` within `ScriptCard` that checks whether the click target falls outside the `.script-card` container (`!card.contains(e.target)`).
+- **Auto Deselection**: When a line is selected (`selectedLineUid !== null`) and the user clicks anywhere outside the script card (facts chips, customer segment tabs, workbench background, reasons list, etc.), `onLineSelect(null)` is called to clear the line selection and dismiss active toolbars.
+
+### 2. Customer Segment English Enforcement (`apps/api/prompts.py` & `apps/api/tests/test_regenerate.py`)
+- **Strict English Persona Rules**: Updated `LANGUAGE_BLOCK`, `SEGMENT_PROMPT`, and `REGENERATE_SEGMENT_PROMPT` to explicitly dictate that customer segment details (`name`, `who`, `pain_point`, `platforms`) must ALWAYS be generated in English, even when script language is Bengali (`bn`) or the target market is Bangladesh.
+- **Scope Clarification**: Strictly confined Bengali generation to the spoken video script dialogue lines (hook, concept, cta), while customer segments and marketing reasons remain in English.
+- **Updated Test Suite**: Updated `test_regenerate_segment_english_enforcement` in `test_regenerate.py` to verify that regenerating a segment with `language="bn"` enforces English persona generation in prompts and returns English segment content.
+
+### 3. Verification & Quality Assurance
+- `apps/api/.venv/bin/python3 -m pytest apps/api/tests/`: All **28 tests passing**.
+- `bun run --cwd apps/web build`: Built successfully in ~505ms with 0 errors.
+- `bun run --cwd apps/web lint`: 0 warnings, 0 errors across 29 files.

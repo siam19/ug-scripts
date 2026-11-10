@@ -20,6 +20,15 @@ os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "test-project")
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 from main import app  # noqa: E402
+from rate_limiter import regeneration_limiter  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Resets the in-memory rate limiter before each test."""
+    regeneration_limiter.reset()
+    yield
+    regeneration_limiter.reset()
 
 
 @pytest.fixture
@@ -54,3 +63,12 @@ def valid_form_data():
         "market": "Bangladesh",
         "language": "en",
     }
+
+
+@pytest.fixture
+def sample_facts():
+    return [
+        "24-hour hydration formula",
+        "Contains 2% pure hyaluronic acid",
+        "Fragrance-free and hypoallergenic",
+    ]

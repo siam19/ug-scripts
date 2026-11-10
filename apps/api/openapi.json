@@ -170,10 +170,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {
@@ -232,10 +230,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {
@@ -294,10 +290,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {
@@ -356,10 +350,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {
@@ -418,10 +410,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {
@@ -480,10 +470,8 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
           }
         ],
         "requestBody": {

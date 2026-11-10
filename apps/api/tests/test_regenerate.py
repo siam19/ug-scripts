@@ -111,14 +111,14 @@ def test_regenerate_segment_success(mock_gemini, client, valid_headers, sample_f
 
 
 @patch("main.ask_gemini", new_callable=AsyncMock)
-def test_regenerate_segment_bangla_retention(mock_gemini, client, valid_headers, sample_facts, sample_segment):
-    mock_bn_segment = Segment(
-        name="কলেজ শিক্ষার্থী ও তরুণরা",
-        who="পকেট খরচ সামলে চলা কলেজ ও বিশ্ববিদ্যালয়ের তরুণ-তরুণী",
-        pain_point="অল্প খরচে ভালো মানের স্কিনকেয়ার প্রোডাক্ট খুঁজে পাওয়া যায় না",
+def test_regenerate_segment_english_enforcement(mock_gemini, client, valid_headers, sample_facts, sample_segment):
+    mock_en_segment = Segment(
+        name="Budget-Conscious College Students",
+        who="University students in Dhaka managing tight monthly allowances",
+        pain_point="I want skincare that actually works without spending a fortune",
         platforms=["TikTok", "Instagram Reels"],
     )
-    mock_gemini.return_value = mock_bn_segment
+    mock_gemini.return_value = mock_en_segment
 
     payload = {
         "name": "Hydra Serum",
@@ -133,12 +133,11 @@ def test_regenerate_segment_bangla_retention(mock_gemini, client, valid_headers,
     res = client.post("/regenerate/segment", json=payload, headers=valid_headers)
     assert res.status_code == 200
     data = res.json()
-    assert "কলেজ শিক্ষার্থী" in data["name"]
+    assert "College Students" in data["name"]
 
-    # Verify Bengali language block in prompt
+    # Verify English language requirement is enforced in prompt
     prompt_used = mock_gemini.call_args[1]["prompt"]
-    assert "Bangla" in prompt_used
-    assert "বাংলা" in prompt_used
+    assert "English" in prompt_used
 
 
 # ---------------------------------------------------------------------------

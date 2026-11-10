@@ -898,7 +898,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;
@@ -934,7 +933,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;
@@ -970,7 +968,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;
@@ -1006,7 +1003,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;
@@ -1042,7 +1038,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;
@@ -1078,7 +1073,6 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
             };
             path?: never;

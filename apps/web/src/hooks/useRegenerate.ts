@@ -36,6 +36,11 @@ async function postJson<T>(endpoint: string, body: unknown): Promise<T> {
     } catch {
       // Ignore JSON parse failure
     }
+    if (res.status === 429) {
+      throw new Error(
+        detail || 'Slow down. Too many requests in 1 minute. Try again later.',
+      );
+    }
     throw new Error(detail || `API request failed with status ${res.status}: ${res.statusText}`);
   }
   return (await res.json()) as T;

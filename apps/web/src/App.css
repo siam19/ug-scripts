@@ -640,6 +640,35 @@
   display: grid;
   gap: 20px;
   align-items: start;
+  transition: opacity 0.3s ease;
+}
+
+.workbench.is-updating {
+  pointer-events: none;
+  user-select: none;
+  animation: workbenchPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes workbenchPulse {
+  0% {
+    opacity: 0.95;
+    filter: blur(0px);
+  }
+  50% {
+    opacity: 0.42;
+    filter: blur(0.5px);
+  }
+  100% {
+    opacity: 0.85;
+    filter: blur(0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench.is-updating {
+    animation: none;
+    opacity: 0.5;
+  }
 }
 
 .script-card h3,
@@ -881,15 +910,19 @@
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 14px;
-  transition: background-color 0.12s, border-color 0.12s;
+  transition: background-color 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 .reason:hover {
   border-color: var(--line-strong);
 }
-.reason.is-lit,
 .reason[aria-pressed='true'] {
   background: var(--tint);
   border-color: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.reason.is-lit:not([aria-pressed='true']) {
+  background: var(--tint);
+  border-color: var(--line-strong);
 }
 
 .reason-title {
@@ -1125,6 +1158,16 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.stale-actions .btn.is-loading {
+  cursor: wait;
+  opacity: 0.85;
+}
+.btn-spinner {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+  animation: spin 0.8s linear infinite;
 }
 .btn-sm {
   height: 32px;

@@ -210,6 +210,23 @@ export function ScriptCard({
     };
   }, [selectedLineUid, litLineUids, lineViews]);
 
+  // Deselect line when clicking outside script-card
+  useEffect(() => {
+    if (!selectedLineUid) return;
+
+    function handlePointerDown(e: PointerEvent) {
+      const card = cardRef.current;
+      if (!card) return;
+      if (e.target instanceof Node && card.contains(e.target)) {
+        return;
+      }
+      onLineSelect(null);
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [selectedLineUid, onLineSelect]);
+
   async function handleCopy() {
     const text = lineViews.map((r) => r.text).join('\n\n');
     await copyToClipboard(text);
@@ -312,7 +329,10 @@ export function ScriptCard({
               onSelect={(uid) => onLineSelect(selectedLineUid === uid ? null : uid)}
               onHover={onLineHover}
               onDraft={handleDraft}
-              onEdit={onEditLine}
+              onEdit={(uid, text) => {
+                handleDraft(uid, null);
+                onEditLine(uid, text);
+              }}
               onRephrase={onRephraseLine}
               onRegenerate={onRegenerateLine}
               onUndo={onUndoLine}

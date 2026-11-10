@@ -1,6 +1,7 @@
 import type { LineKind, Script, Segment } from 'api-types';
 import { factsHash, hash, segmentHash } from './hash';
 import {
+  collectVisibleUids,
   findLineNode,
   resolveVisibleCover,
 } from './script-tree';
@@ -582,10 +583,6 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       const cover = resolveVisibleCover(doc, reason.cites);
       if (!cover) return state;
 
-      const updatedReasons = rev.reasons.map((r) =>
-        r.uid === action.reasonUid ? { ...r, pending: false } : r,
-      );
-
       // Build new LineNodes for the rewritten lines
       const newNodes: LineNode[] = action.newLines.map((nl) => ({
         type: 'line',
@@ -594,6 +591,20 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
         cursor: 0,
         versions: [{ id: generateUid(), label: 'Original', text: nl.text }],
       }));
+
+      const visibleUids = cover.coverNodes.flatMap(collectVisibleUids);
+      const newUids = newNodes.map((n) => n.uid);
+      const updatedReasons = rev.reasons.map((r) => {
+        const touchesCover =
+          r.uid === action.reasonUid || r.cites.some((id) => visibleUids.includes(id));
+        return touchesCover
+          ? {
+              ...r,
+              cites: Array.from(new Set([...r.cites, ...newUids])),
+              pending: r.uid === action.reasonUid ? false : r.pending,
+            }
+          : r;
+      });
 
       // If the cover is already a GroupNode, append a new GroupVersion
       if (cover.coverNodes.length === 1 && cover.coverNodes[0].type === 'group') {

@@ -21,16 +21,16 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 LANGUAGE_BLOCK = """LANGUAGE INSTRUCTION:
-You must output ALL dialogue, persona descriptions, pain points, and technique
-explanations strictly in {language_name} ({language_code}).
+- ONLY the spoken video script dialogue lines (hook, concept, cta) must be written in {language_name} ({language_code}).
+- Customer segments (name, who, pain_point, platforms), product facts, and marketing rationale (reasons: title, why) MUST ALWAYS be written in English.
 - If language is 'Bangla' (bn):
-  * Use proper, natural Bengali script (বাংলা).
-  * Write in conversational, authentic spoken Bangla used by UGC creators in Bangladesh.
+  * Spoken video script dialogue lines (hook, concept, cta) must be written in proper, natural Bengali script (বাংলা).
+  * Write dialogue in conversational, authentic spoken Bangla used by UGC creators in Bangladesh.
   * DO NOT transliterate English into Bengali script (no "Banglish").
-  * DO NOT output English sentences or phrases.
-  * Platform names (TikTok, Instagram Reels, etc.) stay in English.
+  * DO NOT output English sentences for spoken dialogue lines.
+  * Customer segments, marketing reasons, and platform names MUST remain strictly in English.
 - If language is 'English' (en):
-  * Use crisp, natural, conversational spoken English.
+  * Use crisp, natural, conversational spoken English for script dialogue lines.
 """
 
 # ---------------------------------------------------------------------------
@@ -48,12 +48,15 @@ Description: {description}
 The attached image is the product photo. Read it closely: packaging
 text, ingredients/specs, colors, size cues, anything a viewer notices.
 
+LANGUAGE REQUIREMENT:
+- All product facts and customer segments MUST ALWAYS be written in English.
+
 TASK
 1. product_facts: 5-8 concrete, verifiable facts drawn ONLY from the
-   description and image. No invented claims.
-2. segments: exactly 3 customer segments most likely to buy. They must
+   description and image in English. No invented claims.
+2. segments: exactly 3 customer segments most likely to buy in English. They must
    differ in motivation, not just age. For each: name, who (age range,
-   situation, daily context), pain_point (in their own words), platforms.
+   situation, daily context), pain_point (in their own words in English), platforms.
 Be specific. 'Young professionals' is too vague.
 """
 
@@ -79,10 +82,10 @@ RULES
 - Use only the facts above. No medical claims, no '#1', no made-up
   numbers or testimonials.
 - Speak to this segment's pain point, not to everyone.
-- reasons: exactly 3. Each names a specific technique (pattern
+- reasons: exactly 3. Each names a specific technique in English (pattern
   interrupt, specificity, objection handling, social proof, etc.),
-  explains why it works for THIS segment, and lists the line_ids that
-  use it. Never cite a line that does not do what you claim.
+  explains in English why it works for THIS segment, and lists the line_ids that
+  use it. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that does not do what you claim.
 """
 
 # ---------------------------------------------------------------------------
@@ -101,7 +104,10 @@ PRODUCT: {name} ({category})
 PRODUCT FACTS:
 {facts}
 
-{language_block}
+LANGUAGE REQUIREMENT:
+- All customer segment details (name, who, pain_point, platforms) MUST ALWAYS be written in English.
+- Even if the target market is Bangladesh or the chosen script language is Bangla, the customer segment personas MUST REMAIN IN ENGLISH. Only the spoken video script itself will be in Bengali.
+- Do NOT output Bengali script (বাংলা) anywhere in this response.
 
 TASK
 Generate ONE new customer segment that would be a strong buyer of this
@@ -113,10 +119,11 @@ following existing segments:
 REQUIREMENTS
 - The new segment must differ in motivation, lifestyle, and daily
   context — not just demographics or age.
-- name: A vivid, specific persona title (not generic like "young adults").
-- who: Age range, life situation, daily context, and buying motivation.
+- All fields must be strictly in English.
+- name: A vivid, specific persona title in English (not generic like "young adults").
+- who: Age range, life situation, daily context, and buying motivation in English.
 - pain_point: The core frustration or desire expressed in this persona's
-  own natural words — first person, emotionally specific.
+  own natural words in English — first person, emotionally specific.
 - platforms: 1-3 short-form video platforms where this persona is most
   active.
 - Be creative and specific. The new segment must NOT overlap with any of
@@ -152,10 +159,10 @@ RULES
 - Use ONLY the facts listed above. No medical claims, no '#1', no
   made-up numbers or testimonials.
 - Speak directly to this segment's pain point, not to a generic audience.
-- reasons: exactly 3. Each names a specific technique (pattern
+- reasons: exactly 3. Each names a specific technique in English (pattern
   interrupt, specificity, objection handling, social proof, etc.),
-  explains why it works for THIS segment, and lists the line_ids that
-  use it. Cited line_ids must be contiguous. Never cite a line that
+  explains in English why it works for THIS segment, and lists the line_ids that
+  use it. Cited line_ids must be contiguous. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that
   does not demonstrate the claimed technique.
 """
 

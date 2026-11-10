@@ -4,7 +4,6 @@ import type { LineKind } from 'api-types';
 import { IconArrowBackUp, IconCheck, IconX } from '@tabler/icons-react';
 import { LineToolbar } from './LineToolbar';
 import type { LinePending } from './LineToolbar';
-import { MOD } from '../state/keyboard';
 import { ScopeBadge } from './VersionRail';
 import type { ScopeVersion } from './VersionRail';
 
@@ -54,6 +53,7 @@ export function ScriptLine(p: Props) {
   const { line, selected } = p;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(line.text);
+  const initialText = useRef(line.text);
   const area = useRef<HTMLTextAreaElement>(null);
 
   // Ensure editing cancels when line is deselected externally (e.g. ESC or other selection)
@@ -93,13 +93,14 @@ export function ScriptLine(p: Props) {
   }, [draft, editing]);
 
   function startEdit() {
+    initialText.current = line.text;
     setDraft(line.text);
     setEditing(true);
   }
 
   function finishEdit(save: boolean) {
     const next = draft.trim();
-    if (save && next && next !== line.text) {
+    if (save && next && next !== initialText.current) {
       p.onEdit(line.uid, next);
     }
     setEditing(false);
@@ -115,8 +116,12 @@ export function ScriptLine(p: Props) {
     if (e.nativeEvent.isComposing) return; // Bangla / IME composition
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopPropagation();
       finishEdit(false);
-    } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    } else if (e.key === 'Enter') {
+      if (e.shiftKey) {
+        return; // Allow Shift+Enter to create a newline
+      }
       e.preventDefault();
       finishEdit(true);
     }
@@ -232,7 +237,7 @@ export function ScriptLine(p: Props) {
 
       {editing && (
         <div className="line-toolbar line-editbar" role="group" aria-label="Editing line">
-          <span className="tb-hint">{MOD}↵ save · Esc cancel</span>
+          <span className="tb-hint">↵ save · Shift+↵ newline · Esc cancel</span>
           <button type="button" className="tb-btn" onClick={() => finishEdit(false)}>
             <IconX size={16} aria-hidden="true" />
             <span>Cancel</span>

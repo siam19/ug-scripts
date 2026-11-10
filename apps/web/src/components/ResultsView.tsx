@@ -1,4 +1,4 @@
-import { useEffect, useId, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { LineKind, ProgressiveGenerateResponse, Segment } from 'api-types';
 import { useRegenerate } from '../hooks/useRegenerate';
@@ -53,6 +53,35 @@ export function ResultsView({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const segmentSectionRef = useRef<HTMLElement>(null);
   const scrolledOnce = useRef(false);
+
+  // Regeneration loading states
+  const [isRegeneratingStale, setIsRegeneratingStale] = useState(false);
+  const [rewritingSlotIds, setRewritingSlotIds] = useState<Set<Uid>>(new Set());
+
+  // Client-side rate limiting & anti-spam guard
+  const requestTimestamps = useRef<number[]>([]);
+  const lastRequestTime = useRef<number>(0);
+
+  const isRateLimited = useCallback((): boolean => {
+    const now = Date.now();
+    // 1. Rapid burst debounce: minimum 1.2s between user trigger clicks
+    if (now - lastRequestTime.current < 1200) {
+      return true;
+    }
+    // 2. 60-second sliding window: max 12 requests per minute
+    const windowStart = now - 60_000;
+    requestTimestamps.current = requestTimestamps.current.filter((t) => t > windowStart);
+    if (requestTimestamps.current.length >= 12) {
+      return true;
+    }
+    return false;
+  }, []);
+
+  const recordRequest = useCallback(() => {
+    const now = Date.now();
+    lastRequestTime.current = now;
+    requestTimestamps.current.push(now);
+  }, []);
 
   // Toasts
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -192,6 +221,12 @@ export function ResultsView({
   const activeDoc = activeSlot?.script;
   const activeRev = activeDoc ? activeDoc.revisions[activeDoc.cursor] : null;
 
+  const isRewritingActiveScript = Boolean(activeSlot && rewritingSlotIds.has(activeSlot.id));
+  const isScriptUpdating =
+    isRegeneratingStale ||
+    isRewritingActiveScript ||
+    Boolean(activeDoc?.pending);
+
   // Staleness calculations
   const fHash = factsHash(workspace.facts);
   const originalFactsHash = factsHash(
@@ -225,15 +260,18 @@ export function ResultsView({
   useEffect(() => {
     function handleGlobalKeyDown(e: globalThis.KeyboardEvent) {
       if (e.key === 'Escape') {
-        if (workspace.selection.kind !== 'none') {
-          e.preventDefault();
-          dispatch({ type: 'SELECT_NONE' });
+        e.preventDefault();
+        dispatch({ type: 'SELECT_NONE' });
+        setHoverReasonIndex(null);
+        setHoverLineUid(null);
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
         }
       }
     }
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
-  }, [workspace.selection]);
+  }, []);
 
   const markChanged = (uidToMark: Uid) => {
     setRecentlyChangedUids((prev) => new Set([...prev, uidToMark]));
@@ -248,10 +286,15 @@ export function ResultsView({
 
   const pinnedReasonIndex =
     workspace.selection.kind === 'reason' && activeRev
-      ? activeRev.reasons.findIndex((r) => r.uid === (workspace.selection as { reasonUid: Uid }).reasonUid)
+      ? (() => {
+          const idx = activeRev.reasons.findIndex(
+            (r) => r.uid === (workspace.selection as { reasonUid: Uid }).reasonUid,
+          );
+          return idx !== -1 ? idx : null;
+        })()
       : null;
 
-  const focusedReasonIndex = hoverReasonIndex ?? (pinnedReasonIndex !== -1 ? pinnedReasonIndex : null);
+  const focusedReasonIndex = hoverReasonIndex ?? pinnedReasonIndex;
 
   // Lit line UIDs from focused reason
   const litLineUids = new Set<Uid>();
@@ -299,6 +342,12 @@ export function ResultsView({
   // --- Action Handlers ---
 
   async function handleSegmentRefresh(slot: SegmentSlot) {
+    if (isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+    recordRequest();
+
     dispatch({ type: 'REPLACE_SEGMENT_START', slotId: slot.id });
     const others = workspace.slots.filter((s) => s.id !== slot.id).map((s) => s.segment);
     const factsList = workspace.facts.map((f) => f.text);
@@ -313,7 +362,7 @@ export function ResultsView({
       );
 
       // Auto-trigger script generation for the new segment
-      handleRewriteScript(slot.id, newSeg);
+      handleRewriteScript(slot.id, newSeg, true);
     } catch (err: unknown) {
       dispatch({ type: 'REPLACE_SEGMENT_FAIL', slotId: slot.id });
       const msg = err instanceof Error ? err.message : 'Failed to regenerate segment';
@@ -321,9 +370,21 @@ export function ResultsView({
     }
   }
 
-  async function handleRewriteScript(slotId: Uid, segOverride?: Segment) {
+  async function handleRewriteScript(slotId: Uid, segOverride?: Segment, skipRateLimitCheck = false) {
     const slot = workspace.slots.find((s) => s.id === slotId);
     if (!slot) return;
+
+    if (rewritingSlotIds.has(slotId)) return;
+
+    if (!skipRateLimitCheck && isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+    if (!skipRateLimitCheck) {
+      recordRequest();
+    }
+
+    setRewritingSlotIds((prev) => new Set([...prev, slotId]));
     dispatch({ type: 'REWRITE_SCRIPT_START', slotId });
     try {
       const factsList = workspace.facts.map((f) => f.text);
@@ -334,6 +395,32 @@ export function ResultsView({
       dispatch({ type: 'REWRITE_SCRIPT_FAIL', slotId });
       const msg = err instanceof Error ? err.message : 'Failed to rewrite script';
       addToast(msg, undefined, undefined, true);
+    } finally {
+      setRewritingSlotIds((prev) => {
+        const next = new Set(prev);
+        next.delete(slotId);
+        return next;
+      });
+    }
+  }
+
+  async function handleRegenerateStale() {
+    if (isRegeneratingStale) return;
+
+    if (isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+
+    const staleSlots = workspace.slots.filter((s) => slotNeedsRegen(workspace, s));
+    if (staleSlots.length === 0) return;
+
+    setIsRegeneratingStale(true);
+    recordRequest();
+    try {
+      await Promise.all(staleSlots.map((s) => handleRewriteScript(s.id, undefined, true)));
+    } finally {
+      setIsRegeneratingStale(false);
     }
   }
 
@@ -341,6 +428,12 @@ export function ResultsView({
     if (!activeRev) return;
     const reason = activeRev.reasons.find((r) => r.uid === reasonUid);
     if (!reason || !activeDoc) return;
+
+    if (isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+    recordRequest();
 
     dispatch({ type: 'SELECT_REASON', reasonUid });
     dispatch({ type: 'REWRITE_REASON_START', reasonUid });
@@ -391,6 +484,13 @@ export function ResultsView({
   async function handleRephrase(lineUid: Uid) {
     const line = activeLines.find((l) => l.node.uid === lineUid);
     if (!line) return;
+
+    if (isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+    recordRequest();
+
     dispatch({ type: 'REPHRASE_LINE_START', lineUid });
 
     const lineIdx = activeLines.findIndex((l) => l.node.uid === lineUid);
@@ -430,6 +530,13 @@ export function ResultsView({
   async function handleRegenerateLine(lineUid: Uid) {
     const line = activeLines.find((l) => l.node.uid === lineUid);
     if (!line) return;
+
+    if (isRateLimited()) {
+      addToast('Slow down. Too many requests in 1 minute. Try again later.', undefined, undefined, true);
+      return;
+    }
+    recordRequest();
+
     dispatch({ type: 'REGENERATE_LINE_START', lineUid });
 
     const lineIdx = activeLines.findIndex((l) => l.node.uid === lineUid);
@@ -532,21 +639,17 @@ export function ResultsView({
 
           <Collapse open={factsAreChanged}>
             <StaleBar
+              busy={isRegeneratingStale}
               actions={[
                 {
                   label: 'Reset facts',
                   onClick: () => dispatch({ type: 'RESET_FACTS' }),
                 },
                 {
-                  label: 'Regenerate',
+                  label: isRegeneratingStale ? 'Regenerating…' : 'Regenerate',
                   primary: true,
-                  onClick: () => {
-                    workspace.slots.forEach((s) => {
-                      if (slotNeedsRegen(workspace, s)) {
-                        handleRewriteScript(s.id);
-                      }
-                    });
-                  },
+                  loading: isRegeneratingStale,
+                  onClick: handleRegenerateStale,
                 },
               ]}
             >
@@ -629,6 +732,7 @@ export function ResultsView({
             {/* Workbench Stale Bar */}
             {activeStaleReasons.length > 0 && (
               <StaleBar
+                busy={isRewritingActiveScript}
                 actions={[
                   {
                     label: 'Keep as is',
@@ -636,8 +740,9 @@ export function ResultsView({
                       dispatch({ type: 'KEEP_SCRIPT_AS_IS', slotId: activeSlot.id }),
                   },
                   {
-                    label: 'Rewrite script',
+                    label: isRewritingActiveScript ? 'Rewriting…' : 'Rewrite script',
                     primary: true,
+                    loading: isRewritingActiveScript,
                     onClick: () => handleRewriteScript(activeSlot.id),
                   },
                 ]}
@@ -648,7 +753,7 @@ export function ResultsView({
 
             {/* Script & Reasoning Workbench */}
             {activeDoc ? (
-              <div className="workbench">
+              <div className={`workbench${isScriptUpdating ? ' is-updating' : ''}`}>
                 <ScriptCard
                   doc={activeDoc}
                   scope={activeScope}
@@ -665,9 +770,10 @@ export function ResultsView({
                       ? dispatch({ type: 'SELECT_LINE', uid: lineUid })
                       : dispatch({ type: 'SELECT_NONE' })
                   }
-                  onEditLine={(lineUid, text) =>
-                    dispatch({ type: 'EDIT_LINE', lineUid, text })
-                  }
+                  onEditLine={(lineUid, text) => {
+                    dispatch({ type: 'EDIT_LINE', lineUid, text });
+                    markChanged(lineUid);
+                  }}
                   onRephraseLine={handleRephrase}
                   onRegenerateLine={handleRegenerateLine}
                   onUndoLine={(lineUid) =>
@@ -690,12 +796,17 @@ export function ResultsView({
                   pinnedIndex={pinnedReasonIndex}
                   onHover={(idx) => setHoverReasonIndex(idx)}
                   onPin={(idx) => {
-                    if (pinnedReasonIndex === idx) {
+                    const reason = activeRev?.reasons[idx];
+                    if (!reason) return;
+                    if (
+                      workspace.selection.kind === 'reason' &&
+                      workspace.selection.reasonUid === reason.uid
+                    ) {
                       dispatch({ type: 'SELECT_NONE' });
-                    } else if (activeRev?.reasons[idx]) {
+                    } else {
                       dispatch({
                         type: 'SELECT_REASON',
-                        reasonUid: activeRev.reasons[idx].uid,
+                        reasonUid: reason.uid,
                       });
                     }
                   }}

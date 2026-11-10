@@ -16,11 +16,13 @@ from typing import Literal, Sequence, Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
+
+from rate_limiter import check_regeneration_rate_limit
 
 from schemas import (
     GenerateResponse,
@@ -401,6 +403,7 @@ async def generate_stream(
     response_model=Segment,
     tags=["Granular Regenerations"],
     summary="Regenerate a single customer segment distinct from all active segments",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def regenerate_segment(
     payload: SegmentRegenerateRequest,
@@ -438,6 +441,7 @@ async def regenerate_segment(
     response_model=Script,
     tags=["Granular Regenerations"],
     summary="Rewrite an entire UGC script for a specific segment",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def rewrite_script(
     payload: ScriptRewriteRequest,
@@ -471,6 +475,7 @@ async def rewrite_script(
     response_model=ReasonLinesRewriteResponse,
     tags=["Granular Regenerations"],
     summary="Rewrite the contiguous line group cited by a marketing technique",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def rewrite_reason_lines(
     payload: ReasonLinesRewriteRequest,
@@ -510,6 +515,7 @@ async def rewrite_reason_lines(
     response_model=LineRephraseResponse,
     tags=["Granular Regenerations"],
     summary="Rephrase a single line in an alternative tone while preserving meaning",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def rephrase_line(
     payload: LineRephraseRequest,
@@ -550,6 +556,7 @@ async def rephrase_line(
     response_model=LineRegenerateResponse,
     tags=["Granular Regenerations"],
     summary="Replace a single line with a completely new angle fitting the same position",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def regenerate_line(
     payload: LineRegenerateRequest,
@@ -587,6 +594,7 @@ async def regenerate_line(
     "/regenerate/section",
     tags=["Granular Regenerations"],
     summary="Regenerate customer segments and scripts progressively via SSE after facts updates",
+    dependencies=[Depends(check_regeneration_rate_limit)],
 )
 async def regenerate_section(
     payload: SectionRegenerateRequest,

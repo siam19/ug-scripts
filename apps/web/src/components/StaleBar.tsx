@@ -1,9 +1,11 @@
 import type { ReactNode } from 'react';
+import { IconRefresh } from '@tabler/icons-react';
 
 export interface StaleAction {
   label: string;
   onClick: () => void;
   primary?: boolean;
+  loading?: boolean;
 }
 
 interface BarProps {
@@ -17,20 +19,26 @@ interface BarProps {
  */
 export function StaleBar({ children, actions, busy = false }: BarProps) {
   return (
-    <div className="stale-bar" role="status">
+    <div className={`stale-bar${busy ? ' is-busy' : ''}`} role="status">
       <p>{children}</p>
       <div className="stale-actions">
-        {actions.map((a) => (
-          <button
-            key={a.label}
-            type="button"
-            className={`btn btn-sm ${a.primary ? 'btn-primary' : 'btn-quiet'}`}
-            disabled={busy}
-            onClick={a.onClick}
-          >
-            {a.label}
-          </button>
-        ))}
+        {actions.map((a) => {
+          const isLoading = Boolean(a.loading || (busy && a.primary));
+          return (
+            <button
+              key={a.label}
+              type="button"
+              className={`btn btn-sm ${a.primary ? 'btn-primary' : 'btn-quiet'}${isLoading ? ' is-loading' : ''}`}
+              disabled={busy || isLoading}
+              onClick={a.onClick}
+            >
+              {isLoading && (
+                <IconRefresh size={14} className="btn-spinner" aria-hidden="true" />
+              )}
+              <span>{a.label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
