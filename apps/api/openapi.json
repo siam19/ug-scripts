@@ -26,13 +26,116 @@
         }
       }
     },
+    "/auth/verify": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Verify demo access code and retrieve user usage statistics",
+        "operationId": "verify_access_auth_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VerifyAccessResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/request-access": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Submit a lead request for demo access",
+        "operationId": "request_access_auth_request_access_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRequestCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessRequestResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/demo-products": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Retrieve curated preset demo products",
+        "operationId": "list_demo_products_demo_products_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoProductsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/generate": {
       "post": {
         "tags": [
           "Script Generation"
         ],
         "summary": "Generate customer segments and 3 UGC scripts from product details and image",
-        "description": "Pipeline:\n1. Authenticate request using X-API-Key header.\n2. Validate input constraints (market length, image mime type, file size).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment with assigned hook styles.\n5. Return unified facts, segments, and scripts.",
+        "description": "Pipeline:\n1. Authenticate request using X-Access-Code or X-API-Key header.\n2. Validate input constraints (market length, image or demo product).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment with assigned hook styles.\n5. Return unified facts, segments, and scripts with X-Token-Usage header.\n6. Asynchronously archive image and audit log to Firestore.",
         "operationId": "generate_generate_post",
         "parameters": [
           {
@@ -48,10 +151,24 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
           }
         ],
         "requestBody": {
@@ -94,7 +211,7 @@
           "Script Generation"
         ],
         "summary": "Progressively stream customer segments and generated UGC scripts via SSE",
-        "description": "Progressive SSE Pipeline:\n1. Authenticate request using X-API-Key header.\n2. Validate input constraints (market length, image mime type, file size).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n   -> Yields 'segments' event immediately.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment.\n   -> Yields each 'script' event as soon as its generation completes.\n5. Yields 'done' event when all scripts are generated, or 'error' event on failure.",
+        "description": "Progressive SSE Pipeline:\n1. Authenticate request using X-Access-Code or X-API-Key header.\n2. Validate input constraints (market length, image or demo product).\n3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.\n   -> Yields 'segments' event immediately.\n4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment.\n   -> Yields each 'script' event as soon as its generation completes.\n5. Yields 'done' event with usage breakdown on completion, or 'error' event on failure.\n6. Asynchronously logs telemetry and token usage in Firestore.",
         "operationId": "generate_stream_generate_stream_post",
         "parameters": [
           {
@@ -110,10 +227,24 @@
                   "type": "null"
                 }
               ],
-              "description": "API Key for request authorization",
               "title": "X-Api-Key"
-            },
-            "description": "API Key for request authorization"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
           }
         ],
         "requestBody": {
@@ -171,6 +302,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
             }
           }
         ],
@@ -232,6 +379,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
           }
         ],
         "requestBody": {
@@ -291,6 +454,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
             }
           }
         ],
@@ -352,6 +531,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
           }
         ],
         "requestBody": {
@@ -412,6 +607,22 @@
               ],
               "title": "X-Api-Key"
             }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
           }
         ],
         "requestBody": {
@@ -454,7 +665,7 @@
           "Granular Regenerations"
         ],
         "summary": "Regenerate customer segments and scripts progressively via SSE after facts updates",
-        "description": "Progressive SSE pipeline that runs when product facts are updated:\n1. Preserves hand-edited segments where keep_segment is True.\n2. Generates new distinct segments for slots where keep_segment is False.\n   -> Yields 'segments' event.\n3. In parallel, rewrites scripts for all 3 segments with updated facts.\n   -> Yields 'script' event as each finishes.\n4. Yields 'done' event on completion or 'error' on failure.",
+        "description": "Progressive SSE pipeline that runs when product facts are updated:\n1. Preserves hand-edited segments where keep_segment is True.\n2. Generates new distinct segments for slots where keep_segment is False.\n   -> Yields 'segments' event.\n3. In parallel, rewrites scripts for all 3 segments with updated facts.\n   -> Yields 'script' event as each finishes.\n4. Yields 'done' event with usage breakdown on completion or 'error' on failure.",
         "operationId": "regenerate_section_regenerate_section_post",
         "parameters": [
           {
@@ -471,6 +682,22 @@
                 }
               ],
               "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
             }
           }
         ],
@@ -509,6 +736,60 @@
   },
   "components": {
     "schemas": {
+      "AccessRequestCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Requester's full name"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 25,
+            "minLength": 6,
+            "title": "Phone",
+            "description": "Requester's contact phone number"
+          },
+          "company": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Company",
+            "description": "Requester's company or agency"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "phone",
+          "company"
+        ],
+        "title": "AccessRequestCreate",
+        "description": "Request model for POST /auth/request-access."
+      },
+      "AccessRequestResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether the request was successfully recorded"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Confirmation feedback for the user"
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "message"
+        ],
+        "title": "AccessRequestResponse",
+        "description": "Response model for POST /auth/request-access."
+      },
       "Body_generate_generate_post": {
         "properties": {
           "name": {
@@ -541,10 +822,29 @@
             "description": "Desired script language: 'en' for English or 'bn' for Bangla"
           },
           "image": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Image",
             "description": "Product image file (JPEG, PNG, or WebP, max 5 MB)"
+          },
+          "demo_product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Product Id",
+            "description": "Preset demo product ID (if not uploading an image)"
           }
         },
         "type": "object",
@@ -553,8 +853,7 @@
           "description",
           "category",
           "market",
-          "language",
-          "image"
+          "language"
         ],
         "title": "Body_generate_generate_post"
       },
@@ -590,10 +889,29 @@
             "description": "Desired script language: 'en' for English or 'bn' for Bangla"
           },
           "image": {
-            "type": "string",
-            "contentMediaType": "application/octet-stream",
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Image",
             "description": "Product image file (JPEG, PNG, or WebP, max 5 MB)"
+          },
+          "demo_product_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Product Id",
+            "description": "Preset demo product ID (if not uploading an image)"
           }
         },
         "type": "object",
@@ -602,10 +920,85 @@
           "description",
           "category",
           "market",
-          "language",
-          "image"
+          "language"
         ],
         "title": "Body_generate_stream_generate_stream_post"
+      },
+      "DemoProduct": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "description": "Unique product slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Product title"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "Product category"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Detailed product description"
+          },
+          "market": {
+            "type": "string",
+            "title": "Market",
+            "description": "Target market (e.g., Bangladesh, US)"
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "en",
+              "bn"
+            ],
+            "title": "Language",
+            "description": "Target dialogue language"
+          },
+          "image_url": {
+            "type": "string",
+            "title": "Image Url",
+            "description": "Direct HTTPS URL to sample product image"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order",
+            "description": "Display order sequence",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "description",
+          "market",
+          "language",
+          "image_url"
+        ],
+        "title": "DemoProduct",
+        "description": "Pre-curated demo product model."
+      },
+      "DemoProductsResponse": {
+        "properties": {
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/DemoProduct"
+            },
+            "type": "array",
+            "title": "Products",
+            "description": "List of preset demo products"
+          }
+        },
+        "type": "object",
+        "title": "DemoProductsResponse",
+        "description": "Response model for GET /demo-products."
       },
       "GenerateResponse": {
         "properties": {
@@ -1416,6 +1809,68 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifyAccessRequest": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 3,
+            "title": "Code",
+            "description": "Demo access code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "VerifyAccessRequest",
+        "description": "Request model for POST /auth/verify."
+      },
+      "VerifyAccessResponse": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid",
+            "description": "Whether the access code is valid and active"
+          },
+          "owner_name": {
+            "type": "string",
+            "title": "Owner Name",
+            "description": "Tester or organization name",
+            "default": ""
+          },
+          "company": {
+            "type": "string",
+            "title": "Company",
+            "description": "Company name",
+            "default": ""
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "description": "Lifetime total tokens consumed by this code",
+            "default": 0
+          },
+          "total_input_tokens": {
+            "type": "integer",
+            "title": "Total Input Tokens",
+            "description": "Lifetime input tokens consumed",
+            "default": 0
+          },
+          "total_output_tokens": {
+            "type": "integer",
+            "title": "Total Output Tokens",
+            "description": "Lifetime output tokens generated",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "title": "VerifyAccessResponse",
+        "description": "Response model for POST /auth/verify."
       }
     }
   }

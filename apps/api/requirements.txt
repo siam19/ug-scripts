@@ -6,3 +6,6 @@ python-multipart>=0.0.12
 python-dotenv>=1.0.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
+google-cloud-firestore>=2.34.0
+google-cloud-storage>=3.17.0
+httpx>=0.28.0

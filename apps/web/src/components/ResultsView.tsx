@@ -52,6 +52,7 @@ export function ResultsView({
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const segmentSectionRef = useRef<HTMLElement>(null);
+  const workbenchRef = useRef<HTMLDivElement>(null);
   const scrolledOnce = useRef(false);
 
   // Regeneration loading states
@@ -272,6 +273,23 @@ export function ResultsView({
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  // Deselect pinned reason when clicking outside the workbench
+  useEffect(() => {
+    if (workspace.selection.kind !== 'reason') return;
+
+    function handlePointerDown(e: PointerEvent) {
+      const wb = workbenchRef.current;
+      if (!wb) return;
+      if (e.target instanceof Node && wb.contains(e.target)) {
+        return;
+      }
+      dispatch({ type: 'SELECT_NONE' });
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [workspace.selection.kind]);
 
   const markChanged = (uidToMark: Uid) => {
     setRecentlyChangedUids((prev) => new Set([...prev, uidToMark]));
@@ -753,7 +771,10 @@ export function ResultsView({
 
             {/* Script & Reasoning Workbench */}
             {activeDoc ? (
-              <div className={`workbench${isScriptUpdating ? ' is-updating' : ''}`}>
+              <div
+                ref={workbenchRef}
+                className={`workbench${isScriptUpdating ? ' is-updating' : ''}`}
+              >
                 <ScriptCard
                   doc={activeDoc}
                   scope={activeScope}

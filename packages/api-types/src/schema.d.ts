@@ -24,6 +24,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify demo access code and retrieve user usage statistics */
+        post: operations["verify_access_auth_verify_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/request-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a lead request for demo access */
+        post: operations["request_access_auth_request_access_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/demo-products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Retrieve curated preset demo products */
+        get: operations["list_demo_products_demo_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/generate": {
         parameters: {
             query?: never;
@@ -36,11 +87,12 @@ export interface paths {
         /**
          * Generate customer segments and 3 UGC scripts from product details and image
          * @description Pipeline:
-         *     1. Authenticate request using X-API-Key header.
-         *     2. Validate input constraints (market length, image mime type, file size).
+         *     1. Authenticate request using X-Access-Code or X-API-Key header.
+         *     2. Validate input constraints (market length, image or demo product).
          *     3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.
          *     4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment with assigned hook styles.
-         *     5. Return unified facts, segments, and scripts.
+         *     5. Return unified facts, segments, and scripts with X-Token-Usage header.
+         *     6. Asynchronously archive image and audit log to Firestore.
          */
         post: operations["generate_generate_post"];
         delete?: never;
@@ -61,13 +113,14 @@ export interface paths {
         /**
          * Progressively stream customer segments and generated UGC scripts via SSE
          * @description Progressive SSE Pipeline:
-         *     1. Authenticate request using X-API-Key header.
-         *     2. Validate input constraints (market length, image mime type, file size).
+         *     1. Authenticate request using X-Access-Code or X-API-Key header.
+         *     2. Validate input constraints (market length, image or demo product).
          *     3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.
          *        -> Yields 'segments' event immediately.
          *     4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment.
          *        -> Yields each 'script' event as soon as its generation completes.
-         *     5. Yields 'done' event when all scripts are generated, or 'error' event on failure.
+         *     5. Yields 'done' event with usage breakdown on completion, or 'error' event on failure.
+         *     6. Asynchronously logs telemetry and token usage in Firestore.
          */
         post: operations["generate_stream_generate_stream_post"];
         delete?: never;
@@ -198,7 +251,7 @@ export interface paths {
          *        -> Yields 'segments' event.
          *     3. In parallel, rewrites scripts for all 3 segments with updated facts.
          *        -> Yields 'script' event as each finishes.
-         *     4. Yields 'done' event on completion or 'error' on failure.
+         *     4. Yields 'done' event with usage breakdown on completion or 'error' on failure.
          */
         post: operations["regenerate_section_regenerate_section_post"];
         delete?: never;
@@ -211,6 +264,43 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AccessRequestCreate
+         * @description Request model for POST /auth/request-access.
+         */
+        AccessRequestCreate: {
+            /**
+             * Name
+             * @description Requester's full name
+             */
+            name: string;
+            /**
+             * Phone
+             * @description Requester's contact phone number
+             */
+            phone: string;
+            /**
+             * Company
+             * @description Requester's company or agency
+             */
+            company: string;
+        };
+        /**
+         * AccessRequestResponse
+         * @description Response model for POST /auth/request-access.
+         */
+        AccessRequestResponse: {
+            /**
+             * Success
+             * @description Whether the request was successfully recorded
+             */
+            success: boolean;
+            /**
+             * Message
+             * @description Confirmation feedback for the user
+             */
+            message: string;
+        };
         /** Body_generate_generate_post */
         Body_generate_generate_post: {
             /**
@@ -243,7 +333,12 @@ export interface components {
              * Image
              * @description Product image file (JPEG, PNG, or WebP, max 5 MB)
              */
-            image: string;
+            image?: string | null;
+            /**
+             * Demo Product Id
+             * @description Preset demo product ID (if not uploading an image)
+             */
+            demo_product_id?: string | null;
         };
         /** Body_generate_stream_generate_stream_post */
         Body_generate_stream_generate_stream_post: {
@@ -277,7 +372,71 @@ export interface components {
              * Image
              * @description Product image file (JPEG, PNG, or WebP, max 5 MB)
              */
-            image: string;
+            image?: string | null;
+            /**
+             * Demo Product Id
+             * @description Preset demo product ID (if not uploading an image)
+             */
+            demo_product_id?: string | null;
+        };
+        /**
+         * DemoProduct
+         * @description Pre-curated demo product model.
+         */
+        DemoProduct: {
+            /**
+             * Id
+             * @description Unique product slug
+             */
+            id: string;
+            /**
+             * Name
+             * @description Product title
+             */
+            name: string;
+            /**
+             * Category
+             * @description Product category
+             */
+            category: string;
+            /**
+             * Description
+             * @description Detailed product description
+             */
+            description: string;
+            /**
+             * Market
+             * @description Target market (e.g., Bangladesh, US)
+             */
+            market: string;
+            /**
+             * Language
+             * @description Target dialogue language
+             * @enum {string}
+             */
+            language: "en" | "bn";
+            /**
+             * Image Url
+             * @description Direct HTTPS URL to sample product image
+             */
+            image_url: string;
+            /**
+             * Order
+             * @description Display order sequence
+             * @default 0
+             */
+            order: number;
+        };
+        /**
+         * DemoProductsResponse
+         * @description Response model for GET /demo-products.
+         */
+        DemoProductsResponse: {
+            /**
+             * Products
+             * @description List of preset demo products
+             */
+            products?: components["schemas"]["DemoProduct"][];
         };
         /**
          * GenerateResponse
@@ -793,6 +952,58 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * VerifyAccessRequest
+         * @description Request model for POST /auth/verify.
+         */
+        VerifyAccessRequest: {
+            /**
+             * Code
+             * @description Demo access code
+             */
+            code: string;
+        };
+        /**
+         * VerifyAccessResponse
+         * @description Response model for POST /auth/verify.
+         */
+        VerifyAccessResponse: {
+            /**
+             * Valid
+             * @description Whether the access code is valid and active
+             */
+            valid: boolean;
+            /**
+             * Owner Name
+             * @description Tester or organization name
+             * @default
+             */
+            owner_name: string;
+            /**
+             * Company
+             * @description Company name
+             * @default
+             */
+            company: string;
+            /**
+             * Total Tokens
+             * @description Lifetime total tokens consumed by this code
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Total Input Tokens
+             * @description Lifetime input tokens consumed
+             * @default 0
+             */
+            total_input_tokens: number;
+            /**
+             * Total Output Tokens
+             * @description Lifetime output tokens generated
+             * @default 0
+             */
+            total_output_tokens: number;
+        };
     };
     responses: never;
     parameters: never;
@@ -822,12 +1033,98 @@ export interface operations {
             };
         };
     };
+    verify_access_auth_verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VerifyAccessRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerifyAccessResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_access_auth_request_access_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccessRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccessRequestResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_demo_products_demo_products_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DemoProductsResponse"];
+                };
+            };
+        };
+    };
     generate_generate_post: {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -862,8 +1159,8 @@ export interface operations {
         parameters: {
             query?: never;
             header?: {
-                /** @description API Key for request authorization */
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -899,6 +1196,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -934,6 +1232,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -969,6 +1268,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1004,6 +1304,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1039,6 +1340,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;
@@ -1074,6 +1376,7 @@ export interface operations {
             query?: never;
             header?: {
                 "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
             };
             path?: never;
             cookie?: never;

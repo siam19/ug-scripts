@@ -1,6 +1,8 @@
 // apps/web/src/components/ProductForm.tsx
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
+import type { DemoProduct } from 'api-types';
+import { DemoProductPicker } from './DemoProductPicker';
 import {
   ACCEPTED_IMAGE_TYPES,
   MAX_IMAGE_BYTES,
@@ -70,7 +72,7 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
         return;
       }
       setImageError(null);
-      onChange({ image: file });
+      onChange({ image: file, demoProductId: undefined, demoImageUrl: undefined });
     },
     [onChange],
   );
@@ -123,7 +125,23 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
 
   function removeImage() {
     setImageError(null);
-    onChange({ image: null });
+    onChange({ image: null, demoProductId: undefined, demoImageUrl: undefined });
+    if (fileInput.current) fileInput.current.value = '';
+  }
+
+  function handleSelectDemo(product: DemoProduct) {
+    setImageError(null);
+    setCustomCategory(!CATEGORIES.includes(product.category));
+    onChange({
+      name: product.name,
+      category: product.category,
+      description: product.description,
+      market: product.market,
+      language: product.language as Language,
+      demoProductId: product.id,
+      demoImageUrl: product.image_url,
+      image: null,
+    });
     if (fileInput.current) fileInput.current.value = '';
   }
 
@@ -143,7 +161,7 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
   if (!values.category.trim()) missing.push('category');
   if (!values.market.trim()) missing.push('market');
   if (!values.description.trim()) missing.push('description');
-  if (!values.image) missing.push('photo');
+  if (!values.image && !values.demoProductId) missing.push('photo');
   const canSubmit = missing.length === 0 && !submitting;
 
   function handleSubmit(e: FormEvent) {
@@ -153,6 +171,8 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
 
   return (
     <form className="panel product-form" onSubmit={handleSubmit} noValidate>
+      <DemoProductPicker onSelect={handleSelectDemo} selectedId={values.demoProductId} />
+
       <div className="form-grid">
         <div className="form-fields">
           <div className="field-row">
@@ -266,6 +286,21 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
                 <span className="hint">{formatBytes(values.image.size)}</span>
                 <button type="button" className="btn btn-quiet" onClick={removeImage}>
                   Remove
+                </button>
+              </div>
+            </div>
+          ) : values.demoImageUrl ? (
+            <div className="photo-preview">
+              <img src={values.demoImageUrl} alt="Demo product preview" />
+              <div className="photo-meta">
+                <span className="photo-name">Preset product photo</span>
+                <span className="hint">Included with demo</span>
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  onClick={() => onChange({ demoProductId: undefined, demoImageUrl: undefined })}
+                >
+                  Upload custom
                 </button>
               </div>
             </div>

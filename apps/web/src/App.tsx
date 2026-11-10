@@ -1,14 +1,17 @@
 // apps/web/src/App.tsx
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './App.css';
-import { IconBookmark } from '@tabler/icons-react';
+import { IconBookmark, IconKey } from '@tabler/icons-react';
 import { ProductForm } from './components/ProductForm';
 import { LoadingState } from './components/LoadingState';
 import { ResultsView } from './components/ResultsView';
 import { ErrorBanner } from './components/ErrorBanner';
 import { SavedScriptsDrawer } from './components/SavedScriptsDrawer';
+import { AccessGateModal } from './components/AccessGateModal';
+import { TokenMeter } from './components/TokenMeter';
 import { useGenerateScript } from './hooks/useGenerateScript';
 import { useSavedScripts } from './state/saved-scripts';
+import { useTokenTracker } from './hooks/useTokenTracker';
 import { INITIAL_VALUES } from './types/form';
 import type { FormValues } from './types/form';
 
@@ -18,7 +21,20 @@ export default function App() {
   const { status, data, error, runId, generate, retry, clearError } = useGenerateScript();
   const { savedScripts, remove } = useSavedScripts();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [accessModalOpen, setAccessModalOpen] = useState(() => !localStorage.getItem('ug_access_code'));
+  const [accessInitialMode, setAccessInitialMode] = useState<'enter_code' | 'request_access'>('enter_code');
+  const tokens = useTokenTracker();
   const outputRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem('ug_access_code');
+      setAccessInitialMode('enter_code');
+      setAccessModalOpen(true);
+    }
+    window.addEventListener('ug:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('ug:unauthorized', handleUnauthorized);
+  }, []);
 
   function patch(update: Partial<FormValues>) {
     setValues((v) => ({ ...v, ...update }));
@@ -49,6 +65,21 @@ export default function App() {
         <span>Script Assistant</span>
 
         <div className="masthead-actions">
+          <TokenMeter tracker={tokens} />
+
+          <button
+            type="button"
+            className="access-btn"
+            onClick={() => {
+              setAccessInitialMode('request_access');
+              setAccessModalOpen(true);
+            }}
+            title="Manage demo access key"
+          >
+            <IconKey size={15} aria-hidden="true" />
+            <span>Access</span>
+          </button>
+
           <button
             type="button"
             className="saved-btn"
@@ -110,6 +141,13 @@ export default function App() {
         scripts={savedScripts}
         onClose={() => setDrawerOpen(false)}
         onRemove={remove}
+      />
+
+      <AccessGateModal
+        open={accessModalOpen}
+        initialMode={accessInitialMode}
+        onUnlocked={() => setAccessModalOpen(false)}
+        onClose={localStorage.getItem('ug_access_code') ? () => setAccessModalOpen(false) : undefined}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 // apps/web/src/hooks/useGenerateScript.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ProgressiveGenerateResponse, Script, Segment } from 'api-types';
+import type { ProgressiveGenerateResponse, Script, Segment, TokenUsage } from 'api-types';
 import type { FormValues } from '../types/form';
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -28,6 +28,7 @@ interface ScriptEvent {
 
 interface DoneEvent {
   event: 'done';
+  usage?: TokenUsage;
 }
 
 interface ErrorEvent {
@@ -106,7 +107,7 @@ export function useGenerateScript() {
   useEffect(() => () => controller.current?.abort(), []);
 
   const generate = useCallback(async (values: FormValues) => {
-    if (!values.image) return;
+    if (!values.image && !values.demoProductId) return;
 
     controller.current?.abort();
     const ctrl = new AbortController();
@@ -131,20 +132,35 @@ export function useGenerateScript() {
     body.append('category', values.category.trim());
     body.append('market', values.market.trim());
     body.append('language', values.language);
-    body.append('image', values.image);
+    if (values.image) {
+      body.append('image', values.image);
+    } else if (values.demoProductId) {
+      body.append('demo_product_id', values.demoProductId);
+    }
 
     try {
+      const accessCode = localStorage.getItem('ug_access_code') || '';
+      const headers: Record<string, string> = {
+        'Accept': 'text/event-stream',
+      };
+      if (API_KEY) {
+        headers['X-API-Key'] = API_KEY;
+      }
+      if (accessCode) {
+        headers['X-Access-Code'] = accessCode;
+      }
+
       const res = await fetch(`${API_URL}/generate-stream`, {
         method: 'POST',
-        headers: {
-          'X-API-Key': API_KEY,
-          'Accept': 'text/event-stream',
-        },
+        headers,
         body,
         signal: ctrl.signal,
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          window.dispatchEvent(new CustomEvent('ug:unauthorized'));
+        }
         const detail = await res
           .json()
           .then((j: { detail?: unknown }) => (typeof j.detail === 'string' ? j.detail : undefined))
@@ -197,6 +213,11 @@ export function useGenerateScript() {
                 });
               } else if (payload.event === 'done') {
                 gotDone = true;
+                if (payload.usage) {
+                  window.dispatchEvent(
+                    new CustomEvent('ug:token-usage', { detail: payload.usage }),
+                  );
+                }
                 setStatus('success');
               } else if (payload.event === 'error') {
                 setError({

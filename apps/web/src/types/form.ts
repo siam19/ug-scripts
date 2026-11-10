@@ -9,6 +9,8 @@ export interface FormValues {
   market: string;
   language: Language;
   image: File | null;
+  demoProductId?: string;
+  demoImageUrl?: string;
 }
 
 export const INITIAL_VALUES: FormValues = {

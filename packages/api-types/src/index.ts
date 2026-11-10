@@ -23,6 +23,19 @@ export type LineRegenerateResponse = components['schemas']['LineRegenerateRespon
 export type SectionRegenerateRequest = components['schemas']['SectionRegenerateRequest'];
 export type SlotConfig = components['schemas']['SlotConfig'];
 
+// Sprint 3 Security, Telemetry & Demo Product Types
+export type VerifyAccessRequest = components['schemas']['VerifyAccessRequest'];
+export type VerifyAccessResponse = components['schemas']['VerifyAccessResponse'];
+export type AccessRequestCreate = components['schemas']['AccessRequestCreate'];
+export type AccessRequestResponse = components['schemas']['AccessRequestResponse'];
+export type DemoProduct = components['schemas']['DemoProduct'];
+export type DemoProductsResponse = components['schemas']['DemoProductsResponse'];
+export interface TokenUsage {
+  prompt_tokens: number;
+  candidates_tokens: number;
+  total_tokens: number;
+}
+
 export interface ProgressiveGenerateResponse {
   facts: string[];
   segments: Segment[];

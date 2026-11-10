@@ -289,3 +289,61 @@ class SectionRegenerateRequest(BaseModel):
         default_factory=list,
         description="Configuration for each slot indicating whether to preserve or replace"
     )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 3: Security, Telemetry, & Demo Product Models
+# ---------------------------------------------------------------------------
+
+
+class TokenUsage(BaseModel):
+    """Token accounting breakdown for a generation call."""
+    input_tokens: int = Field(default=0, ge=0, description="Prompt tokens consumed")
+    output_tokens: int = Field(default=0, ge=0, description="Completion tokens generated")
+    total_tokens: int = Field(default=0, ge=0, description="Total tokens consumed")
+
+
+class VerifyAccessRequest(BaseModel):
+    """Request model for POST /auth/verify."""
+    code: str = Field(..., min_length=3, max_length=50, description="Demo access code")
+
+
+class VerifyAccessResponse(BaseModel):
+    """Response model for POST /auth/verify."""
+    valid: bool = Field(..., description="Whether the access code is valid and active")
+    owner_name: str = Field(default="", description="Tester or organization name")
+    company: str = Field(default="", description="Company name")
+    total_tokens: int = Field(default=0, description="Lifetime total tokens consumed by this code")
+    total_input_tokens: int = Field(default=0, description="Lifetime input tokens consumed")
+    total_output_tokens: int = Field(default=0, description="Lifetime output tokens generated")
+
+
+class AccessRequestCreate(BaseModel):
+    """Request model for POST /auth/request-access."""
+    name: str = Field(..., min_length=2, max_length=100, description="Requester's full name")
+    phone: str = Field(..., min_length=6, max_length=25, description="Requester's contact phone number")
+    company: str = Field(..., min_length=2, max_length=100, description="Requester's company or agency")
+
+
+class AccessRequestResponse(BaseModel):
+    """Response model for POST /auth/request-access."""
+    success: bool = Field(..., description="Whether the request was successfully recorded")
+    message: str = Field(..., description="Confirmation feedback for the user")
+
+
+class DemoProduct(BaseModel):
+    """Pre-curated demo product model."""
+    id: str = Field(..., description="Unique product slug")
+    name: str = Field(..., description="Product title")
+    category: str = Field(..., description="Product category")
+    description: str = Field(..., description="Detailed product description")
+    market: str = Field(..., description="Target market (e.g., Bangladesh, US)")
+    language: Literal['en', 'bn'] = Field(..., description="Target dialogue language")
+    image_url: str = Field(..., description="Direct HTTPS URL to sample product image")
+    order: int = Field(default=0, description="Display order sequence")
+
+
+class DemoProductsResponse(BaseModel):
+    """Response model for GET /demo-products."""
+    products: list[DemoProduct] = Field(default_factory=list, description="List of preset demo products")
+

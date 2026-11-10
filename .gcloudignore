@@ -1,0 +1,19 @@
+.gcloudignore
+.git
+.gitignore
+
+# Directories to ignore
+node_modules/
+**/node_modules/
+.venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+apps/web/dist/
+dist/
+.env
+.env.local
+docs/

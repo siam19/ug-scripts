@@ -12,11 +12,15 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 const API_KEY = import.meta.env.VITE_API_KEY ?? '';
 
 async function postJson<T>(endpoint: string, body: unknown): Promise<T> {
+  const accessCode = localStorage.getItem('ug_access_code') || '';
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (API_KEY) {
     headers['X-API-Key'] = API_KEY;
+  }
+  if (accessCode) {
+    headers['X-Access-Code'] = accessCode;
   }
   let res: Response;
   try {
@@ -28,7 +32,22 @@ async function postJson<T>(endpoint: string, body: unknown): Promise<T> {
   } catch {
     throw new Error(`Cannot connect to API server at ${API_URL}. Please ensure the server is running.`);
   }
+
+  // Intercept X-Token-Usage header to update masthead usage meter
+  const tokenHeader = res.headers.get('X-Token-Usage');
+  if (tokenHeader) {
+    try {
+      const usage = JSON.parse(tokenHeader);
+      window.dispatchEvent(new CustomEvent('ug:token-usage', { detail: usage }));
+    } catch {
+      // Ignore parse failure
+    }
+  }
+
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('ug:unauthorized'));
+    }
     let detail = '';
     try {
       const errJson = await res.json();

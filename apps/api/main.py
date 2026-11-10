@@ -16,15 +16,42 @@ from typing import Literal, Sequence, Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from google import genai
 from google.genai import types
+import httpx
+from google.cloud import firestore
 
+from audit import log_generation_task
+from auth import (
+    access_request_limiter,
+    require_auth,
+    send_lead_notification,
+    verify_access_code_record,
+)
+from demo_products import find_demo_product, get_demo_products_catalog
+from firebase import get_firestore_client
 from rate_limiter import check_regeneration_rate_limit
 
 from schemas import (
+    AccessRequestCreate,
+    AccessRequestResponse,
+    DemoProduct,
+    DemoProductsResponse,
     GenerateResponse,
     Line,
     LineRegenerateRequest,
@@ -40,7 +67,11 @@ from schemas import (
     Segment,
     SegmentRegenerateRequest,
     Segments,
+    TokenUsage,
+    VerifyAccessRequest,
+    VerifyAccessResponse,
 )
+from usage import record_gemini_usage, start_token_tracking
 from prompts import (
     REGENERATE_LINE_PROMPT,
     REGENERATE_SEGMENT_PROMPT,
@@ -93,6 +124,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["X-Token-Usage", "Retry-After"],
 )
 
 # Global GenAI client cache
@@ -145,6 +177,9 @@ async def ask_gemini(
                     response_schema=schema,
                 ),
             )
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                record_gemini_usage(response.usage_metadata)
+
             parsed = response.parsed
             if parsed is not None:
                 return parsed
@@ -168,14 +203,20 @@ def check_authorization(x_api_key: str | None) -> None:
         )
 
 
-def validate_market_and_image(market: str, image: UploadFile) -> str:
-    """Validates market string length and image media type."""
+def validate_market(market: str) -> str:
+    """Validates market string length."""
     market_clean = market.strip()
     if not market_clean or len(market_clean) > 60:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Market must be between 1 and 60 characters.",
         )
+    return market_clean
+
+
+def validate_market_and_image(market: str, image: UploadFile) -> str:
+    """Validates market string length and image media type."""
+    market_clean = validate_market(market)
 
     if image.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(
@@ -197,6 +238,65 @@ async def read_and_validate_image_bytes(image: UploadFile) -> bytes:
     return image_bytes
 
 
+_demo_image_cache: dict[str, bytes] = {}
+
+
+async def resolve_image_bytes(
+    image: UploadFile | None,
+    demo_product_id: str | None,
+) -> tuple[bytes, str, str | None]:
+    """
+    Resolves image bytes, content-type, and demo_image_url from either an uploaded file
+    or a selected demo product preset.
+    """
+    if demo_product_id and demo_product_id.strip():
+        demo = await find_demo_product(demo_product_id.strip())
+        if not demo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Demo product '{demo_product_id}' was not found.",
+            )
+
+        if demo.id in _demo_image_cache:
+            return _demo_image_cache[demo.id], "image/jpeg", demo.image_url
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as http_client:
+                img_res = await http_client.get(demo.image_url)
+                if img_res.status_code == 200 and img_res.content:
+                    _demo_image_cache[demo.id] = img_res.content
+                    ct = img_res.headers.get("content-type", "image/jpeg")
+                    return img_res.content, ct, demo.image_url
+        except Exception as e:
+            print(f"Warning: Failed to fetch demo image from remote CDN: {e}")
+
+        # Minimal 1x1 valid JPEG fallback bytes
+        placeholder_jpeg = (
+            b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x01\x00H\x00H\x00\x00\xff\xdb\x00C\x00"
+            b"\x08\x06\x06\x07\x06\x05\x08\x07\x07\x07\t\t\x08\n\x0c\x14\r\x0c\x0b\x0b\x0c\x19"
+            b"\x12\x13\x0f\x14\x1d\x1a\x1f\x1e\x1d\x1a\x1c\x1c $.' \",#\x1c\x1c(7),01444\x1f'9="
+            b"82<.342\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00\xff\xc4\x00\x1f\x00\x00"
+            b"\x01\x05\x01\x01\x01\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x01\x02\x03\x04"
+            b"\x05\x06\x07\x08\t\n\x0b\xff\xda\x00\x08\x01\x01\x00\x00?\x00\xbf\x00\xff\xd9"
+        )
+        return placeholder_jpeg, "image/jpeg", demo.image_url
+
+    if not image or not image.filename:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Either an image file or a valid demo_product_id must be provided.",
+        )
+
+    if image.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported image type '{image.content_type}'. Use JPEG, PNG, or WebP.",
+        )
+
+    image_bytes = await read_and_validate_image_bytes(image)
+    return image_bytes, image.content_type, None
+
+
 @app.get("/health", tags=["System"])
 async def health_check():
     """
@@ -209,6 +309,96 @@ async def health_check():
     }
 
 
+# ---------------------------------------------------------------------------
+# Sprint 3: Authentication & Demo Products Endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/auth/verify",
+    response_model=VerifyAccessResponse,
+    tags=["Authentication"],
+    summary="Verify demo access code and retrieve user usage statistics",
+)
+async def verify_access(payload: VerifyAccessRequest):
+    record = await verify_access_code_record(payload.code)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired access code. Please check your code or request access.",
+        )
+    return VerifyAccessResponse(
+        valid=True,
+        owner_name=record.get("owner_name", ""),
+        company=record.get("company", ""),
+        total_tokens=record.get("total_tokens", 0),
+        total_input_tokens=record.get("total_input_tokens", 0),
+        total_output_tokens=record.get("total_output_tokens", 0),
+    )
+
+
+@app.post(
+    "/auth/request-access",
+    response_model=AccessRequestResponse,
+    tags=["Authentication"],
+    summary="Submit a lead request for demo access",
+)
+async def request_access(
+    payload: AccessRequestCreate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, retry_after = access_request_limiter.is_allowed(client_ip)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many access requests. Please try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    try:
+        db = get_firestore_client()
+        await db.collection("access_requests").add({
+            "name": payload.name.strip(),
+            "phone": payload.phone.strip(),
+            "company": payload.company.strip(),
+            "status": "pending",
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "ip": client_ip,
+        })
+    except Exception as e:
+        print(f"Warning: Failed to save access request in Firestore: {e}")
+
+    background_tasks.add_task(
+        send_lead_notification,
+        name=payload.name.strip(),
+        phone=payload.phone.strip(),
+        company=payload.company.strip(),
+    )
+
+    return AccessRequestResponse(
+        success=True,
+        message="Access request received. We will contact you with your access code.",
+    )
+
+
+@app.get(
+    "/demo-products",
+    response_model=DemoProductsResponse,
+    tags=["System"],
+    summary="Retrieve curated preset demo products",
+)
+async def list_demo_products():
+    products = await get_demo_products_catalog()
+    return DemoProductsResponse(products=products)
+
+
+# ---------------------------------------------------------------------------
+# Script Generation Endpoints
+# ---------------------------------------------------------------------------
+
+
 @app.post(
     "/generate",
     response_model=GenerateResponse,
@@ -216,28 +406,34 @@ async def health_check():
     summary="Generate customer segments and 3 UGC scripts from product details and image",
 )
 async def generate(
+    response: Response,
+    background_tasks: BackgroundTasks,
     name: str = Form(..., description="Product name"),
     description: str = Form(..., description="Detailed product description"),
     category: str = Form(..., description="Product category"),
     market: str = Form(..., description="Target market country or region (e.g., 'Bangladesh')"),
     language: Literal["en", "bn"] = Form(..., description="Desired script language: 'en' for English or 'bn' for Bangla"),
-    image: UploadFile = File(..., description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
+    image: UploadFile | None = File(None, description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
+    demo_product_id: str | None = Form(None, description="Preset demo product ID (if not uploading an image)"),
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Pipeline:
-    1. Authenticate request using X-API-Key header.
-    2. Validate input constraints (market length, image mime type, file size).
+    1. Authenticate request using X-Access-Code or X-API-Key header.
+    2. Validate input constraints (market length, image or demo product).
     3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.
     4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment with assigned hook styles.
-    5. Return unified facts, segments, and scripts.
+    5. Return unified facts, segments, and scripts with X-Token-Usage header.
+    6. Asynchronously archive image and audit log to Firestore.
     """
-    check_authorization(x_api_key)
-    market_clean = validate_market_and_image(market, image)
-    image_bytes = await read_and_validate_image_bytes(image)
+    acc = start_token_tracking()
+    market_clean = validate_market(market)
+    image_bytes, content_type, demo_img_url = await resolve_image_bytes(image, demo_product_id)
 
     # Create image part for the multi-modal call
-    img_part = types.Part.from_bytes(data=image_bytes, mime_type=image.content_type)
+    img_part = types.Part.from_bytes(data=image_bytes, mime_type=content_type)
 
     # 3. Stage 1: Facts and Segments Extraction
     segment_prompt = SEGMENT_PROMPT.format(
@@ -276,7 +472,34 @@ async def generate(
         generate_single_script(i, s) for i, s in enumerate(segs.segments)
     ])
 
-    # 5. Build and Return Final Unified Response
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    # 5. Background audit log & image archival
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/generate",
+        product_meta={
+            "name": name,
+            "category": category,
+            "market": market_clean,
+            "language": language,
+            "is_demo_product": bool(demo_product_id),
+        },
+        image_bytes=image_bytes if not demo_img_url else None,
+        image_content_type=content_type,
+        demo_image_url=demo_img_url,
+        request_payload={"name": name, "category": category, "market": market_clean, "language": language},
+        response_payload={
+            "facts": segs.product_facts,
+            "segments": [s.model_dump() for s in segs.segments],
+            "scripts": [s.model_dump() for s in scripts],
+        },
+        usage=usage,
+    )
+
+    # 6. Build and Return Final Unified Response
     return GenerateResponse(
         facts=segs.product_facts,
         segments=segs.segments,
@@ -290,31 +513,37 @@ async def generate(
     summary="Progressively stream customer segments and generated UGC scripts via SSE",
 )
 async def generate_stream(
+    background_tasks: BackgroundTasks,
     name: str = Form(..., description="Product name"),
     description: str = Form(..., description="Detailed product description"),
     category: str = Form(..., description="Product category"),
     market: str = Form(..., description="Target market country or region (e.g., 'Bangladesh')"),
     language: Literal["en", "bn"] = Form(..., description="Desired script language: 'en' for English or 'bn' for Bangla"),
-    image: UploadFile = File(..., description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
+    image: UploadFile | None = File(None, description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
+    demo_product_id: str | None = Form(None, description="Preset demo product ID (if not uploading an image)"),
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Progressive SSE Pipeline:
-    1. Authenticate request using X-API-Key header.
-    2. Validate input constraints (market length, image mime type, file size).
+    1. Authenticate request using X-Access-Code or X-API-Key header.
+    2. Validate input constraints (market length, image or demo product).
     3. Stage 1: Send product image + details to Gemini to extract verifiable facts & 3 segments.
        -> Yields 'segments' event immediately.
     4. Stage 2: In parallel, generate 3 UGC scripts customized for each segment.
        -> Yields each 'script' event as soon as its generation completes.
-    5. Yields 'done' event when all scripts are generated, or 'error' event on failure.
+    5. Yields 'done' event with usage breakdown on completion, or 'error' event on failure.
+    6. Asynchronously logs telemetry and token usage in Firestore.
     """
-    check_authorization(x_api_key)
-    market_clean = validate_market_and_image(market, image)
-    image_bytes = await read_and_validate_image_bytes(image)
-
-    img_part = types.Part.from_bytes(data=image_bytes, mime_type=image.content_type)
+    market_clean = validate_market(market)
+    image_bytes, content_type, demo_img_url = await resolve_image_bytes(image, demo_product_id)
+    img_part = types.Part.from_bytes(data=image_bytes, mime_type=content_type)
 
     async def event_generator():
+        acc = start_token_tracking()
+        collected_segments: list[dict[str, Any]] = []
+        collected_scripts: list[dict[str, Any]] = []
         try:
             # 1. Stage 1: Facts and Segments Extraction
             segment_prompt = SEGMENT_PROMPT.format(
@@ -328,12 +557,13 @@ async def generate_stream(
                 schema=Segments,
                 parts=[img_part],
             )
+            collected_segments = [s.model_dump() for s in segs.segments]
 
             # Emit Stage 1 facts and segments
             stage1_data = {
                 "event": "segments",
                 "facts": segs.product_facts,
-                "segments": [s.model_dump() for s in segs.segments],
+                "segments": collected_segments,
             }
             yield f"data: {json.dumps(stage1_data)}\n\n"
 
@@ -364,10 +594,12 @@ async def generate_stream(
             try:
                 for future in asyncio.as_completed(tasks):
                     idx, script_obj = await future
+                    dumped_script = script_obj.model_dump()
+                    collected_scripts.append(dumped_script)
                     script_data = {
                         "event": "script",
                         "index": idx,
-                        "script": script_obj.model_dump(),
+                        "script": dumped_script,
                     }
                     yield f"data: {json.dumps(script_data)}\n\n"
             except Exception:
@@ -376,7 +608,32 @@ async def generate_stream(
                         t.cancel()
                 raise
 
-            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+            usage = acc.to_dict()
+            yield f"data: {json.dumps({'event': 'done', 'usage': usage})}\n\n"
+
+            # Background audit logging
+            background_tasks.add_task(
+                log_generation_task,
+                access_code=auth.get("access_code", "ANONYMOUS"),
+                endpoint="/generate-stream",
+                product_meta={
+                    "name": name,
+                    "category": category,
+                    "market": market_clean,
+                    "language": language,
+                    "is_demo_product": bool(demo_product_id),
+                },
+                image_bytes=image_bytes if not demo_img_url else None,
+                image_content_type=content_type,
+                demo_image_url=demo_img_url,
+                request_payload={"name": name, "category": category, "market": market_clean, "language": language},
+                response_payload={
+                    "facts": segs.product_facts,
+                    "segments": collected_segments,
+                    "scripts": collected_scripts,
+                },
+                usage=usage,
+            )
 
         except Exception as e:
             detail = getattr(e, "detail", str(e))
@@ -394,7 +651,7 @@ async def generate_stream(
 
 
 # ---------------------------------------------------------------------------
-# Sprint 2: Granular Regeneration Endpoints
+# Sprint 2 & 3: Granular Regeneration Endpoints
 # ---------------------------------------------------------------------------
 
 
@@ -407,13 +664,17 @@ async def generate_stream(
 )
 async def regenerate_segment(
     payload: SegmentRegenerateRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Generates a unique customer segment differing from all other active segments
     while maintaining the selected language (English or Bangla).
     """
-    check_authorization(x_api_key)
+    acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     other_names = "\n".join(
@@ -433,7 +694,20 @@ async def regenerate_segment(
         current_segment_pain_point=payload.current_segment.pain_point,
         other_segment_names=other_names or "None",
     )
-    return await ask_gemini(prompt=prompt, schema=Segment)
+    result = await ask_gemini(prompt=prompt, schema=Segment)
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/regenerate/segment",
+        product_meta={"name": payload.name, "category": payload.category, "market": payload.market, "language": payload.language},
+        request_payload=payload.model_dump(),
+        response_payload=result.model_dump(),
+        usage=usage,
+    )
+    return result
 
 
 @app.post(
@@ -445,13 +719,17 @@ async def regenerate_segment(
 )
 async def rewrite_script(
     payload: ScriptRewriteRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Regenerates a complete script for a specific segment against active facts
     while strictly retaining the requested language and enforcing contiguous reasons.
     """
-    check_authorization(x_api_key)
+    acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     hook_style = payload.hook_style or HOOKS[0]
@@ -467,7 +745,20 @@ async def rewrite_script(
         pain_point=payload.segment.pain_point,
         hook=hook_style,
     )
-    return await ask_gemini(prompt=prompt, schema=Script)
+    result = await ask_gemini(prompt=prompt, schema=Script)
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/regenerate/script",
+        product_meta={"name": payload.name, "category": payload.category, "market": payload.market, "language": payload.language},
+        request_payload=payload.model_dump(),
+        response_payload=result.model_dump(),
+        usage=usage,
+    )
+    return result
 
 
 @app.post(
@@ -479,13 +770,17 @@ async def rewrite_script(
 )
 async def rewrite_reason_lines(
     payload: ReasonLinesRewriteRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Rewrites the lines cited by a marketing technique while keeping surrounding
     script narrative context and preserving structural roles (hook/cta).
     """
-    check_authorization(x_api_key)
+    acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     full_script_text = format_script_context(payload.full_script)
@@ -507,7 +802,20 @@ async def rewrite_reason_lines(
         reason_title=payload.reason.title,
         reason_why=payload.reason.why,
     )
-    return await ask_gemini(prompt=prompt, schema=ReasonLinesRewriteResponse)
+    result = await ask_gemini(prompt=prompt, schema=ReasonLinesRewriteResponse)
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/regenerate/reason-lines",
+        product_meta={"name": payload.name, "market": payload.market, "language": payload.language},
+        request_payload=payload.model_dump(),
+        response_payload=result.model_dump(),
+        usage=usage,
+    )
+    return result
 
 
 @app.post(
@@ -519,13 +827,17 @@ async def rewrite_reason_lines(
 )
 async def rephrase_line(
     payload: LineRephraseRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Rephrases a single sentence into a distinct tone (punchy, casual, authentic, direct)
     while preserving grammatical subject/object and language settings.
     """
-    check_authorization(x_api_key)
+    acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     script_context_text = format_script_context(payload.script_context)
@@ -548,7 +860,20 @@ async def rephrase_line(
         kind=payload.kind,
         avoid_tones=avoid_str,
     )
-    return await ask_gemini(prompt=prompt, schema=LineRephraseResponse)
+    result = await ask_gemini(prompt=prompt, schema=LineRephraseResponse)
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/regenerate/line/rephrase",
+        product_meta={"name": payload.name, "market": payload.market, "language": payload.language},
+        request_payload=payload.model_dump(),
+        response_payload=result.model_dump(),
+        usage=usage,
+    )
+    return result
 
 
 @app.post(
@@ -560,13 +885,17 @@ async def rephrase_line(
 )
 async def regenerate_line(
     payload: LineRegenerateRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Replaces a single line with a fresh, distinct angle matching its structural role
     (hook, concept, cta) in the chosen language.
     """
-    check_authorization(x_api_key)
+    acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     script_context_text = format_script_context(payload.script_context)
@@ -587,7 +916,20 @@ async def regenerate_line(
         current_text=payload.current_text,
         kind=payload.kind,
     )
-    return await ask_gemini(prompt=prompt, schema=LineRegenerateResponse)
+    result = await ask_gemini(prompt=prompt, schema=LineRegenerateResponse)
+    usage = acc.to_dict()
+    response.headers["X-Token-Usage"] = json.dumps(usage)
+
+    background_tasks.add_task(
+        log_generation_task,
+        access_code=auth.get("access_code", "ANONYMOUS"),
+        endpoint="/regenerate/line/regenerate",
+        product_meta={"name": payload.name, "market": payload.market, "language": payload.language},
+        request_payload=payload.model_dump(),
+        response_payload=result.model_dump(),
+        usage=usage,
+    )
+    return result
 
 
 @app.post(
@@ -598,7 +940,10 @@ async def regenerate_line(
 )
 async def regenerate_section(
     payload: SectionRegenerateRequest,
+    background_tasks: BackgroundTasks,
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
 ):
     """
     Progressive SSE pipeline that runs when product facts are updated:
@@ -607,13 +952,15 @@ async def regenerate_section(
        -> Yields 'segments' event.
     3. In parallel, rewrites scripts for all 3 segments with updated facts.
        -> Yields 'script' event as each finishes.
-    4. Yields 'done' event on completion or 'error' on failure.
+    4. Yields 'done' event with usage breakdown on completion or 'error' on failure.
     """
-    check_authorization(x_api_key)
     facts_text = format_facts_text(payload.facts)
     lang_block = get_language_block(payload.language)
 
     async def event_generator():
+        acc = start_token_tracking()
+        collected_segments: list[dict[str, Any]] = []
+        collected_scripts: list[dict[str, Any]] = []
         try:
             # 1. Determine segments for 3 slots
             final_segments: list[Segment | None] = [None, None, None]
@@ -646,12 +993,13 @@ async def regenerate_section(
                     final_segments[idx] = seg
 
             resolved_segments = [s for s in final_segments if s is not None]
+            collected_segments = [s.model_dump() for s in resolved_segments]
 
             # Emit Stage 1 finalized segments
             stage1_data = {
                 "event": "segments",
                 "facts": payload.facts,
-                "segments": [s.model_dump() for s in resolved_segments],
+                "segments": collected_segments,
             }
             yield f"data: {json.dumps(stage1_data)}\n\n"
 
@@ -680,10 +1028,12 @@ async def regenerate_section(
             try:
                 for future in asyncio.as_completed(tasks):
                     idx, script_obj = await future
+                    dumped_script = script_obj.model_dump()
+                    collected_scripts.append(dumped_script)
                     script_data = {
                         "event": "script",
                         "index": idx,
-                        "script": script_obj.model_dump(),
+                        "script": dumped_script,
                     }
                     yield f"data: {json.dumps(script_data)}\n\n"
             except Exception:
@@ -692,7 +1042,28 @@ async def regenerate_section(
                         t.cancel()
                 raise
 
-            yield f"data: {json.dumps({'event': 'done'})}\n\n"
+            usage = acc.to_dict()
+            yield f"data: {json.dumps({'event': 'done', 'usage': usage})}\n\n"
+
+            # Background audit logging
+            background_tasks.add_task(
+                log_generation_task,
+                access_code=auth.get("access_code", "ANONYMOUS"),
+                endpoint="/regenerate/section",
+                product_meta={
+                    "name": payload.name,
+                    "category": payload.category,
+                    "market": payload.market,
+                    "language": payload.language,
+                },
+                request_payload=payload.model_dump(),
+                response_payload={
+                    "facts": payload.facts,
+                    "segments": collected_segments,
+                    "scripts": collected_scripts,
+                },
+                usage=usage,
+            )
 
         except Exception as e:
             detail = getattr(e, "detail", str(e))
@@ -707,3 +1078,36 @@ async def regenerate_section(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Static File & SPA Serving (Production)
+# ---------------------------------------------------------------------------
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+if not STATIC_DIR.exists():
+    alt = Path("/app/static")
+    if alt.exists():
+        STATIC_DIR = alt
+if not STATIC_DIR.exists():
+    alt = Path(__file__).resolve().parent.parent / "web" / "dist"
+    if alt.exists():
+        STATIC_DIR = alt
+
+if STATIC_DIR.exists():
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
+    async def serve_spa(full_path: str):
+        file_path = STATIC_DIR / full_path
+        if full_path and file_path.is_file():
+            return FileResponse(file_path)
+        index_file = STATIC_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Not Found")
+

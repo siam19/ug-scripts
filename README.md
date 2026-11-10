@@ -98,23 +98,28 @@ cd ../..
 
 ### 3. Configure Environment Variables
 
-#### Backend (`apps/api/.env`)
-Create `apps/api/.env` with your Google Cloud and API key configuration:
+#### Root Configuration (`.env`)
+Create a `.env` file in the project root by copying `.env.example`:
 
+```bash
+cp .env.example .env
+```
+
+Configure your parameters:
 ```env
-# Google Cloud Vertex AI Configuration
+# Google Cloud Vertex AI & Firestore Configuration
 GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 GOOGLE_CLOUD_LOCATION=global
 GEMINI_MODEL=gemini-3.5-flash
 
-# Shared Secret API Key for client authorization
+# Shared Secret API Key for client authorization & admin bypass
 API_KEY=your-secure-random-api-key
 
 # Optional: CORS allowed origins (comma-separated, defaults to localhost:5173)
-ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://localhost:8080
 
-# Optional: Local service account key path (if not using gcloud ADC)
-# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account-key.json
+# Service Port
+PORT=8080
 ```
 
 Authenticate your local environment with Google Cloud Application Default Credentials (ADC):
@@ -123,8 +128,8 @@ gcloud auth application-default login
 gcloud auth application-default set-quota-project your-gcp-project-id
 ```
 
-#### Frontend (`apps/web/.env.local`)
-Create `apps/web/.env.local` to match the backend endpoint and secret:
+#### Frontend Local Dev Override (`apps/web/.env.local`)
+When running `vite dev` against an external API server:
 
 ```env
 VITE_API_URL=http://localhost:8000
@@ -152,6 +157,90 @@ bun run dev:web
 
 ---
 
+## Containerization & Local Docker
+
+The repository includes a multi-stage [`Dockerfile`](Dockerfile) that builds the React client using Bun and packages the FastAPI backend into a lean Python 3.12 production container with static single-page application serving.
+
+The Docker build automatically packages root `.env` into the image runtime, so you do not need to manually pass environment variables in `docker run`:
+
+```bash
+# Build the unified container image
+docker build -t ug-scripts:local .
+
+# Run the container
+docker run -d --name ug-scripts -p 8080:8080 ug-scripts:local
+```
+
+Access the application:
+- Web App: [http://localhost:8080](http://localhost:8080)
+- API Health Check: [http://localhost:8080/health](http://localhost:8080/health)
+- Swagger Docs: [http://localhost:8080/docs](http://localhost:8080/docs)
+
+---
+
+## Deployment to Google Cloud Run
+
+The production stack deploys to Google Cloud Run as a serverless container with keyless Vertex AI, Firestore, and Cloud Storage authentication via Application Default Credentials (ADC).
+
+### 1. GCP Prerequisites & IAM Setup
+
+Enable the required Google Cloud APIs:
+```bash
+gcloud services enable \
+  run.googleapis.com \
+  cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com \
+  firestore.googleapis.com \
+  storage.googleapis.com \
+  aiplatform.googleapis.com \
+  --project your-gcp-project-id
+```
+
+Create a dedicated runtime service account and grant it the necessary IAM roles:
+```bash
+# Create service account
+gcloud iam service-accounts create ug-scripts-runner \
+  --display-name="UG-Scripts Cloud Run Service Account" \
+  --project your-gcp-project-id
+
+# Grant Vertex AI Gemini invocation
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="serviceAccount:ug-scripts-runner@your-gcp-project-id.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
+
+# Grant Firestore database read/write
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="serviceAccount:ug-scripts-runner@your-gcp-project-id.iam.gserviceaccount.com" \
+  --role="roles/datastore.user"
+
+# Grant Cloud Storage object creator/viewer for image audit archiving
+gcloud projects add-iam-policy-binding your-gcp-project-id \
+  --member="serviceAccount:ug-scripts-runner@your-gcp-project-id.iam.gserviceaccount.com" \
+  --role="roles/storage.objectUser"
+```
+
+### 2. Seed Initial Firestore Access Codes & Demo Catalog
+Run the seeding script to populate initial 5-character demo access codes (`DEMO1`, `DHAKA`, `BETA1`, `UG001`) and the 12-item demo product shelf:
+
+```bash
+apps/api/.venv/bin/python apps/api/scripts/seed_firestore.py
+```
+
+### 3. Deploy to Cloud Run
+Deploy the application directly from source code using Google Cloud Build:
+
+```bash
+gcloud run deploy ug-scripts \
+  --source . \
+  --project your-gcp-project-id \
+  --region asia-southeast1 \
+  --service-account ug-scripts-runner@your-gcp-project-id.iam.gserviceaccount.com \
+  --set-env-vars GOOGLE_CLOUD_PROJECT=your-gcp-project-id,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,API_KEY=your-secure-random-api-key \
+  --allow-unauthenticated
+```
+
+---
+
 ## Useful Commands
 
 | Command | Action |
@@ -159,5 +248,6 @@ bun run dev:web
 | `bun run dev:web` | Starts the Vite React development server |
 | `bun run build:web` | Type-checks (`tsc`) and builds the production web bundle |
 | `bun run lint:web` | Runs Oxlint linter on the web application |
-| `bun run test:api` | Runs Pytest suite (16 tests covering health, auth, validation, and SSE streaming) |
+| `bun run test:api` | Runs Pytest suite (34 tests covering health, auth, validation, rate limiting, and SSE streaming) |
 | `bun run gen:types` | Generates TypeScript interfaces from FastAPI OpenAPI schema |
+| `python apps/api/scripts/seed_firestore.py` | Seeds Firestore with demo products and access codes |
