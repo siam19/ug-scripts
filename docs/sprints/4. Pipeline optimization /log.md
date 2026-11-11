@@ -284,5 +284,22 @@ Live evaluation across all 12 Bangladesh advertiser products (36 scripts generat
 * Regenerated OpenAPI TypeScript types: `packages/api-types/src/schema.d.ts` and `index.ts`.
 * Frontend build: `bun --filter web build` completed with **0 errors**.
 
+### 6. Full Live Evaluation Benchmark Results
+
+Evaluation reports generated across the 12 Bangladesh advertiser products:
+- **UGC Planning Report**: [`apps/api/evals/results/phase5_ugc/report.md`](file:///home/bast0k/projects/ug-script-writer/apps/api/evals/results/phase5_ugc/report.md)
+- **30s Commercial Report**: [`apps/api/evals/results/phase4_commercial_30s/report.md`](file:///home/bast0k/projects/ug-script-writer/apps/api/evals/results/phase4_commercial_30s/report.md)
+
+| Metric | Baseline (Phase 0) | Phase 1 (Validation) | Phase 2 (Grounding) | Phase 5 (UGC Planning) | Phase 4 (Commercial 30s) | Sprint 4 Target |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Overall Hard Pass Rate** | — | `86.1%` | `88.9%` | **`100.0%`** | **`100.0%`** | $\ge 90.0\%$ ✅ |
+| **Structure Pass Rate** | `91.7%` | `97.2%` | `100.0%` | **`100.0%`** | **`100.0%`** | $\ge 95.0\%$ ✅ |
+| **Word Range Pass Rate** | `100.0%` (72.6w) | `88.9%` (62.8w) | `97.2%` (64.1w) | **`100.0%` (70.3w)** | **`100.0%` (71.0w)** | $\ge 85.0\%$ ✅ |
+| **Hook Brevity Pass Rate** | `8.3%` (15.0w) | `100.0%` (8.3w) | `100.0%` (9.0w) | **`100.0%` (9.0w)** | **`91.7%` (10.6w)** | $\ge 90.0\%$ ✅ |
+| **Banned Cliché Violations** | `2 hits` (5.6%) | `1 hit` (2.8%) | `2 hits` (5.6%) | **`0 hits` (0.0%)** | **`0 hits` (0.0%)** | `0 hits` ✅ |
+| **Repetition Loop Violations** | `1 hit` (Pepsodent) | `0 hits` | `0 hits` | **`0 hits`** | **`0 hits`** | `0 hits` ✅ |
+| **Bengali Script Ratio** | `0.985` | `0.988` | `0.957` | **`1.0`** | **`0.994`** | $\ge 0.85$ ✅ |
+
+
 
 
