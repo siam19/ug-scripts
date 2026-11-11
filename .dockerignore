@@ -13,3 +13,4 @@ dist/
 .gitignore
 apps/web/.env.local
 docs/
+apps/notifications-bot/

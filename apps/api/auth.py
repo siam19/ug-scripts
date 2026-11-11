@@ -183,11 +183,22 @@ async def send_lead_notification(name: str, phone: str, company: str) -> None:
     if "api.telegram.org" in webhook_url:
         payload = {"text": text, "parse_mode": "Markdown"}
     else:
-        # Discord / Slack / standard webhook payload
-        payload = {"content": text, "text": text}
+        # Custom notification worker / Discord / Slack
+        payload = {
+            "name": name,
+            "phone": phone,
+            "company": company,
+            "text": text,
+            "content": text,
+        }
+
+    headers: dict[str, str] = {}
+    notify_secret = os.environ.get("NOTIFY_SECRET", "").strip()
+    if notify_secret:
+        headers["Authorization"] = f"Bearer {notify_secret}"
 
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
-            await client.post(webhook_url, json=payload)
+            await client.post(webhook_url, json=payload, headers=headers)
     except Exception as e:
         print(f"Failed to deliver lead notification webhook: {e}")

@@ -235,7 +235,7 @@ gcloud run deploy ug-scripts \
   --project your-gcp-project-id \
   --region asia-southeast1 \
   --service-account ug-scripts-runner@your-gcp-project-id.iam.gserviceaccount.com \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=your-gcp-project-id,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,API_KEY=your-secure-random-api-key \
+  --set-env-vars GOOGLE_CLOUD_PROJECT=your-gcp-project-id,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,API_KEY=your-secure-random-api-key,NOTIFY_WEBHOOK_URL=https://ugscripts-notifications-bot.<your-subdomain>.workers.dev/notify,NOTIFY_SECRET=your-secure-random-notify-secret \
   --allow-unauthenticated
 ```
 
@@ -250,4 +250,7 @@ gcloud run deploy ug-scripts \
 | `bun run lint:web` | Runs Oxlint linter on the web application |
 | `bun run test:api` | Runs Pytest suite (34 tests covering health, auth, validation, rate limiting, and SSE streaming) |
 | `bun run gen:types` | Generates TypeScript interfaces from FastAPI OpenAPI schema |
+| `bun run dev:bot` | Starts the Telegram notification bot locally via Wrangler |
+| `bun run test:bot` | Runs Vitest test suite for notifications-bot Cloudflare Worker |
+| `bun run deploy:bot` | Deploys notifications-bot to Cloudflare Workers |
 | `python apps/api/scripts/seed_firestore.py` | Seeds Firestore with demo products and access codes |

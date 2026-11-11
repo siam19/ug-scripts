@@ -11,6 +11,9 @@
     "build:web": "bun --filter web build",
     "lint:web": "bun --filter web lint",
     "gen:types": "bun --filter api-types gen",
+    "dev:bot": "bun --filter notifications-bot dev",
+    "test:bot": "bun --filter notifications-bot test",
+    "deploy:bot": "bun --filter notifications-bot deploy",
     "test:api": "cd apps/api && .venv/bin/pytest -v"
   }
 }

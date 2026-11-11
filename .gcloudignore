@@ -17,3 +17,4 @@ dist/
 .env
 .env.local
 docs/
+apps/notifications-bot/

@@ -1,0 +1,14 @@
+name = "ugscripts-notifications-bot"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# Inlined bot metadata to prevent grammY getMe HTTP network calls on cold start
+BOT_INFO = """{"id":9142741080,"is_bot":true,"first_name":"UG-Scripts Notifier","username":"ugscripts_notifications_bot"}"""
+
+[env.dev]
+name = "ugscripts-notifications-bot-dev"
+
+[env.production]
+name = "ugscripts-notifications-bot"

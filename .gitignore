@@ -3,6 +3,8 @@ node_modules/
 .pnp
 .pnp.js
 
+.agents/
+
 # Production build outputs
 dist/
 build/
@@ -37,8 +39,11 @@ wheels/
 .env
 .env.local
 .env.*.local
+.dev.vars
+.wrangler/
 *.json.key
 *credentials*.json
+*credentials*.md
 *-*.json
 *.pem
 *.key
