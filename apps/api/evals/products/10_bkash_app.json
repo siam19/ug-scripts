@@ -1,0 +1,9 @@
+{
+  "id": "bkash-app",
+  "name": "bKash Mobile Financial Services App",
+  "category": "FinTech",
+  "description": "Bangladesh's leading digital financial service app offering instant Send Money, merchant QR payments, utility bill pay, mobile recharge, government allowance disbursement, and inward international remittance. Features fingerprint login, savings schemes, and digital nano-loans with real-time transaction tracking.",
+  "market": "Bangladesh",
+  "default_language": "bn",
+  "image_filename": "10_bkash_app.jpg"
+}

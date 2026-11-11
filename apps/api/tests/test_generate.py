@@ -76,7 +76,7 @@ def test_generate_pipeline_success(client, valid_form_data, sample_png_bytes, va
     """
     mock_segs = mock_segments_data()
 
-    async def fake_ask(prompt, schema, parts=(), max_retries=1):
+    async def fake_ask(prompt, schema, parts=(), max_retries=1, **kwargs):
         if schema == Segments:
             return mock_segs
         elif schema == Script:
@@ -137,7 +137,7 @@ def test_generate_stream_pipeline_success(client, valid_form_data, sample_png_by
 
     mock_segs = mock_segments_data()
 
-    async def fake_ask(prompt, schema, parts=(), max_retries=1):
+    async def fake_ask(prompt, schema, parts=(), max_retries=1, **kwargs):
         if schema == Segments:
             return mock_segs
         elif schema == Script:

@@ -12,6 +12,7 @@ from google.cloud import firestore
 
 from firebase import get_firestore_client, get_storage_bucket
 from auth import clear_auth_cache
+from prompts import PIPELINE_VERSION, PROMPT_VERSIONS
 
 
 async def log_generation_task(
@@ -64,6 +65,8 @@ async def log_generation_task(
             "access_code": access_code,
             "endpoint": endpoint,
             "product_meta": product_meta,
+            "pipeline_version": PIPELINE_VERSION,
+            "prompt_versions": PROMPT_VERSIONS,
             "image_storage_uri": image_uri,
             "request_payload": request_payload or {},
             "response_payload": response_payload or {},

@@ -59,3 +59,7 @@ pnpm-debug.log*
 *.swo
 .DS_Store
 Thumbs.db
+
+# Eval harness results (keep baseline committed)
+apps/api/evals/results/*
+!apps/api/evals/results/baseline/

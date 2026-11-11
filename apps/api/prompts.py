@@ -16,6 +16,20 @@ adherence to the user's selected language (English or Bangla).
 from typing import Any
 
 # ---------------------------------------------------------------------------
+# Pipeline and Prompt Versioning (Sprint 4)
+# ---------------------------------------------------------------------------
+PIPELINE_VERSION = "s4.0"
+PROMPT_VERSIONS: dict[str, str] = {
+    "segment": "v1.0",
+    "script": "v1.0",
+    "regenerate_segment": "v1.0",
+    "rewrite_script": "v1.0",
+    "rewrite_reason_lines": "v1.0",
+    "rephrase_line": "v1.0",
+    "regenerate_line": "v1.0",
+}
+
+# ---------------------------------------------------------------------------
 # Shared language enforcement block injected into every regeneration prompt.
 # Format variables: {language_name}, {language_code}
 # ---------------------------------------------------------------------------

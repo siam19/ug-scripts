@@ -296,11 +296,19 @@ class SectionRegenerateRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class StageTokens(BaseModel):
+    """Token accounting breakdown for a specific pipeline stage."""
+    input_tokens: int = Field(default=0, ge=0, description="Prompt tokens consumed")
+    output_tokens: int = Field(default=0, ge=0, description="Completion tokens generated")
+    total_tokens: int = Field(default=0, ge=0, description="Total tokens consumed")
+
+
 class TokenUsage(BaseModel):
     """Token accounting breakdown for a generation call."""
     input_tokens: int = Field(default=0, ge=0, description="Prompt tokens consumed")
     output_tokens: int = Field(default=0, ge=0, description="Completion tokens generated")
     total_tokens: int = Field(default=0, ge=0, description="Total tokens consumed")
+    by_stage: dict[str, StageTokens] = Field(default_factory=dict, description="Stage-by-stage token breakdown")
 
 
 class VerifyAccessRequest(BaseModel):

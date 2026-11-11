@@ -159,6 +159,10 @@ async def ask_gemini(
     schema: type[Any],
     parts: Sequence[Any] = (),
     max_retries: int = 1,
+    *,
+    temperature: float | None = None,
+    system_instruction: str | None = None,
+    stage: str = "unspecified",
 ) -> Any:
     """
     Helper function to invoke Gemini on Vertex AI asynchronously with structured output.
@@ -167,18 +171,24 @@ async def ask_gemini(
     client = get_genai_client()
     model = os.environ.get("GEMINI_MODEL", DEFAULT_MODEL)
 
+    config_kwargs: dict[str, Any] = {
+        "response_mime_type": "application/json",
+        "response_schema": schema,
+    }
+    if temperature is not None:
+        config_kwargs["temperature"] = temperature
+    if system_instruction is not None:
+        config_kwargs["system_instruction"] = system_instruction
+
     for attempt in range(max_retries + 1):
         try:
             response = await client.aio.models.generate_content(
                 model=model,
                 contents=[*parts, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=schema,
-                ),
+                config=types.GenerateContentConfig(**config_kwargs),
             )
             if hasattr(response, "usage_metadata") and response.usage_metadata:
-                record_gemini_usage(response.usage_metadata)
+                record_gemini_usage(response.usage_metadata, stage=stage)
 
             parsed = response.parsed
             if parsed is not None:
@@ -191,6 +201,74 @@ async def ask_gemini(
                     detail=f"Vertex AI generation error: {str(e)}",
                 )
             await asyncio.sleep(1)
+
+
+async def run_stage1(
+    name: str,
+    category: str,
+    description: str,
+    market: str,
+    parts: Sequence[Any] = (),
+) -> Segments:
+    """Executes Stage 1: multi-modal extraction of facts and segments."""
+    segment_prompt = SEGMENT_PROMPT.format(
+        name=name,
+        category=category,
+        description=description,
+        market=market,
+    )
+    return await ask_gemini(
+        prompt=segment_prompt,
+        schema=Segments,
+        parts=parts,
+        stage="extract",
+    )
+
+
+async def run_stage2_single_script(
+    index: int,
+    segment: Segment,
+    name: str,
+    category: str,
+    market: str,
+    language: str,
+    facts_text: str,
+) -> Script:
+    """Generates a single UGC script for a given segment and hook index."""
+    hook_style = HOOKS[index % len(HOOKS)]
+    lang_name = LANGUAGES.get(language, language)
+    prompt = SCRIPT_PROMPT.format(
+        name=name,
+        category=category,
+        facts=facts_text,
+        segment_name=segment.name,
+        who=segment.who,
+        pain_point=segment.pain_point,
+        hook=hook_style,
+        market=market,
+        language=lang_name,
+    )
+    return await ask_gemini(
+        prompt=prompt,
+        schema=Script,
+        stage="script",
+    )
+
+
+async def run_stage2(
+    name: str,
+    category: str,
+    market: str,
+    language: str,
+    facts: list[str],
+    segments: list[Segment],
+) -> list[Script]:
+    """Executes Stage 2: parallel generation of 3 scripts (one per segment)."""
+    facts_text = "\n".join(f"- {fact}" for fact in facts)
+    return await asyncio.gather(*[
+        run_stage2_single_script(i, s, name, category, market, language, facts_text)
+        for i, s in enumerate(segments)
+    ])
 
 
 def check_authorization(x_api_key: str | None) -> None:
@@ -436,41 +514,23 @@ async def generate(
     img_part = types.Part.from_bytes(data=image_bytes, mime_type=content_type)
 
     # 3. Stage 1: Facts and Segments Extraction
-    segment_prompt = SEGMENT_PROMPT.format(
+    segs: Segments = await run_stage1(
         name=name,
         category=category,
         description=description,
         market=market_clean,
-    )
-    segs: Segments = await ask_gemini(
-        prompt=segment_prompt,
-        schema=Segments,
         parts=[img_part],
     )
 
-    # Format facts list for injection into Stage 2 script prompts
-    facts_text = "\n".join(f"- {fact}" for fact in segs.product_facts)
-
     # 4. Stage 2: Parallel Script Generation (One per Segment)
-    async def generate_single_script(index: int, segment: Segment) -> Script:
-        hook_style = HOOKS[index % len(HOOKS)]
-        prompt = SCRIPT_PROMPT.format(
-            name=name,
-            category=category,
-            facts=facts_text,
-            segment_name=segment.name,
-            who=segment.who,
-            pain_point=segment.pain_point,
-            hook=hook_style,
-            market=market_clean,
-            language=LANGUAGES[language],
-        )
-        return await ask_gemini(prompt=prompt, schema=Script)
-
-    # Execute all 3 script calls concurrently
-    scripts: list[Script] = await asyncio.gather(*[
-        generate_single_script(i, s) for i, s in enumerate(segs.segments)
-    ])
+    scripts: list[Script] = await run_stage2(
+        name=name,
+        category=category,
+        market=market_clean,
+        language=language,
+        facts=segs.product_facts,
+        segments=segs.segments,
+    )
 
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
@@ -546,15 +606,11 @@ async def generate_stream(
         collected_scripts: list[dict[str, Any]] = []
         try:
             # 1. Stage 1: Facts and Segments Extraction
-            segment_prompt = SEGMENT_PROMPT.format(
+            segs: Segments = await run_stage1(
                 name=name,
                 category=category,
                 description=description,
                 market=market_clean,
-            )
-            segs: Segments = await ask_gemini(
-                prompt=segment_prompt,
-                schema=Segments,
                 parts=[img_part],
             )
             collected_segments = [s.model_dump() for s in segs.segments]
@@ -571,19 +627,15 @@ async def generate_stream(
             facts_text = "\n".join(f"- {fact}" for fact in segs.product_facts)
 
             async def generate_single_script(index: int, segment: Segment) -> tuple[int, Script]:
-                hook_style = HOOKS[index % len(HOOKS)]
-                prompt = SCRIPT_PROMPT.format(
+                script_obj = await run_stage2_single_script(
+                    index=index,
+                    segment=segment,
                     name=name,
                     category=category,
-                    facts=facts_text,
-                    segment_name=segment.name,
-                    who=segment.who,
-                    pain_point=segment.pain_point,
-                    hook=hook_style,
                     market=market_clean,
-                    language=LANGUAGES[language],
+                    language=language,
+                    facts_text=facts_text,
                 )
-                script_obj = await ask_gemini(prompt=prompt, schema=Script)
                 return index, script_obj
 
             tasks = [
@@ -694,7 +746,7 @@ async def regenerate_segment(
         current_segment_pain_point=payload.current_segment.pain_point,
         other_segment_names=other_names or "None",
     )
-    result = await ask_gemini(prompt=prompt, schema=Segment)
+    result = await ask_gemini(prompt=prompt, schema=Segment, stage="regenerate_segment")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -745,7 +797,7 @@ async def rewrite_script(
         pain_point=payload.segment.pain_point,
         hook=hook_style,
     )
-    result = await ask_gemini(prompt=prompt, schema=Script)
+    result = await ask_gemini(prompt=prompt, schema=Script, stage="rewrite_script")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -802,7 +854,7 @@ async def rewrite_reason_lines(
         reason_title=payload.reason.title,
         reason_why=payload.reason.why,
     )
-    result = await ask_gemini(prompt=prompt, schema=ReasonLinesRewriteResponse)
+    result = await ask_gemini(prompt=prompt, schema=ReasonLinesRewriteResponse, stage="rewrite_reason_lines")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -860,7 +912,7 @@ async def rephrase_line(
         kind=payload.kind,
         avoid_tones=avoid_str,
     )
-    result = await ask_gemini(prompt=prompt, schema=LineRephraseResponse)
+    result = await ask_gemini(prompt=prompt, schema=LineRephraseResponse, stage="rephrase_line")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -916,7 +968,7 @@ async def regenerate_line(
         current_text=payload.current_text,
         kind=payload.kind,
     )
-    result = await ask_gemini(prompt=prompt, schema=LineRegenerateResponse)
+    result = await ask_gemini(prompt=prompt, schema=LineRegenerateResponse, stage="regenerate_line")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -989,7 +1041,7 @@ async def regenerate_section(
                         current_segment_pain_point="Outdated context",
                         other_segment_names=other_names,
                     )
-                    seg = await ask_gemini(prompt=prompt, schema=Segment)
+                    seg = await ask_gemini(prompt=prompt, schema=Segment, stage="regenerate_segment")
                     final_segments[idx] = seg
 
             resolved_segments = [s for s in final_segments if s is not None]
@@ -1017,7 +1069,7 @@ async def regenerate_section(
                     pain_point=segment.pain_point,
                     hook=hook_style,
                 )
-                script_obj = await ask_gemini(prompt=prompt, schema=Script)
+                script_obj = await ask_gemini(prompt=prompt, schema=Script, stage="rewrite_script")
                 return index, script_obj
 
             tasks = [
