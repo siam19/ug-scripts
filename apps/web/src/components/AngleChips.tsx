@@ -112,6 +112,7 @@ export function AngleChips({ angles }: Props) {
               className={`angle-card chip-animated angle-card-${angle.type}`}
             >
               <div className="angle-card-header">
+                <span className="angle-number-badge">#{angle.id}</span>
                 <span className={`angle-badge angle-badge-${angle.type}`}>
                   {formatAngleType(angle.type)}
                 </span>

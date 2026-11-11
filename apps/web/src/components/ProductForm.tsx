@@ -275,7 +275,10 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
                   </label>
                 ))}
               </div>
-              <span className="hint">
+            </div>
+
+            <div className="field format-hint-col">
+              <span className="hint format-hint">
                 {(values.script_format ?? 'ugc') === 'ugc'
                   ? 'Creator style, fast scroll-stopping hook, 60–90 words'
                   : 'Broadcast / digital TV commercial, voiceover & scene visual cues, 65–80 words'}

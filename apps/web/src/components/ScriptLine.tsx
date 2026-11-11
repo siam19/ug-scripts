@@ -202,7 +202,6 @@ export function ScriptLine(p: Props) {
           </div>
           {line.visual && (
             <div className="ln-visual-cue">
-              <span className="ln-visual-icon" aria-hidden="true">🎬</span>
               <span>{line.visual}</span>
             </div>
           )}

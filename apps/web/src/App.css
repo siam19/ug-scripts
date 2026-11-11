@@ -209,6 +209,22 @@
   outline-offset: 2px;
 }
 
+.format-hint-col {
+  justify-content: flex-end;
+  padding-bottom: 6px;
+}
+
+.format-hint {
+  max-width: 40ch;
+}
+
+@media (max-width: 639px) {
+  .format-hint-col {
+    margin-top: -10px;
+    padding-bottom: 0;
+  }
+}
+
 /* Photo upload */
 .photo-field {
   min-height: 280px;
@@ -908,15 +924,10 @@
   border-left: 3px solid #0ea5e9;
   border-radius: 0 6px 6px 0;
   font-size: 0.8125rem;
-  font-style: italic;
+  font-style: normal;
   color: #0369a1;
   line-height: 1.4;
   margin: 2px 0;
-}
-.ln-visual-icon {
-  font-style: normal;
-  font-size: 0.875rem;
-  line-height: 1.2;
 }
 .line.is-lit .kind,
 .line.is-selected .kind {
@@ -1324,6 +1335,16 @@
   border-radius: 4px;
 }
 
+.angle-number-badge {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  color: var(--ink-2);
+  background: var(--tint);
+  border: 1px solid var(--line-strong);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
 .angle-framing-badge {
   font-size: 0.6875rem;
   color: var(--ink-3);
@@ -1341,7 +1362,7 @@
 /* Lead angles badge row on SegmentCard */
 .segment-lead-angles {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
@@ -1355,13 +1376,75 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   flex: none;
-  margin-top: 2px;
 }
 
 .segment-lead-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.lead-angle-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 5px;
+  background: var(--tint, #f8fafc);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  color: var(--ink, #0f172a);
+  letter-spacing: 0.02em;
+  cursor: default;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.lead-angle-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+}
+
+.lead-angle-pill.angle-pill-benefit {
+  background: #d8f1e5;
+  color: #12805a;
+  border-color: rgba(18, 128, 90, 0.35);
+}
+
+.lead-angle-pill.angle-pill-demo {
+  background: #e2eafc;
+  color: #2a55d4;
+  border-color: rgba(42, 85, 212, 0.35);
+}
+
+.lead-angle-pill.angle-pill-objection {
+  background: #fce8d9;
+  color: #d95a07;
+  border-color: rgba(217, 90, 7, 0.35);
+}
+
+.lead-angle-pill.angle-pill-use_moment {
+  background: #f3e8ff;
+  color: #6b21a8;
+  border-color: rgba(107, 33, 168, 0.35);
+}
+
+.lead-angle-pill.angle-pill-identity {
+  background: #ffe4e6;
+  color: #9f1239;
+  border-color: rgba(159, 18, 57, 0.35);
+}
+
+.lead-angle-pill.angle-pill-contrast {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: rgba(154, 52, 18, 0.35);
+}
+
+.lead-angle-pill.angle-pill-audience_context {
+  background: #e2e8f0;
+  color: #334155;
+  border-color: rgba(51, 65, 85, 0.35);
 }
 
 .segment-lead-badge {

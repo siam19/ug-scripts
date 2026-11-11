@@ -204,7 +204,10 @@ export function useGenerateScript() {
               if (payload.event === 'segments') {
                 setData({
                   facts: payload.facts,
+                  product_appearance: payload.product_appearance,
+                  angles: payload.angles,
                   segments: payload.segments,
+                  script_format: payload.script_format,
                   scripts: new Array<Script | null>(payload.segments.length).fill(null),
                 });
                 setStatus('streaming');

@@ -35,10 +35,6 @@ export function SegmentCard({
   const [platforms, setPlatforms] = useState<string[]>(segment.platforms);
   const [newPlatform, setNewPlatform] = useState('');
 
-  const leadAngles = (angles || []).filter(
-    (a) => segment.lead_angle_ids?.includes(a.id),
-  );
-
   function startEdit() {
     setName(segment.name);
     setWho(segment.who);
@@ -186,19 +182,26 @@ export function SegmentCard({
               ))}
             </ul>
 
-            {leadAngles.length > 0 && (
+            {segment.lead_angle_ids && segment.lead_angle_ids.length > 0 && (
               <div className="segment-lead-angles">
                 <span className="segment-lead-title">Lead Angles:</span>
                 <div className="segment-lead-chips">
-                  {leadAngles.map((a) => (
-                    <span
-                      key={a.id}
-                      className={`angle-badge angle-badge-${a.type}`}
-                      title={a.text}
-                    >
-                      {formatAngleType(a.type)}: “{a.text.slice(0, 50)}{a.text.length > 50 ? '…' : ''}”
-                    </span>
-                  ))}
+                  {segment.lead_angle_ids.map((id) => {
+                    const matched = (angles || []).find((a) => a.id === id);
+                    const angleType = matched?.type;
+                    const tooltip = matched
+                      ? `${formatAngleType(matched.type)} (#${id}): “${matched.text}”`
+                      : `Angle #${id}`;
+                    return (
+                      <span
+                        key={id}
+                        className={`lead-angle-pill ${angleType ? `angle-pill-${angleType}` : ''}`}
+                        title={tooltip}
+                      >
+                        #{id}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}
