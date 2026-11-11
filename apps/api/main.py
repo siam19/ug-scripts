@@ -46,6 +46,13 @@ from auth import (
 from demo_products import find_demo_product, get_demo_products_catalog
 from firebase import get_firestore_client
 from rate_limiter import check_regeneration_rate_limit
+from validation import (
+    Issue,
+    ask_validated,
+    build_reason_lines_correction_prompt,
+    validate_reason_lines_rewrite,
+    validate_script,
+)
 
 from schemas import (
     AccessRequestCreate,
@@ -234,7 +241,7 @@ async def run_stage2_single_script(
     language: str,
     facts_text: str,
 ) -> Script:
-    """Generates a single UGC script for a given segment and hook index."""
+    """Generates a single UGC script with deterministic in-code validation and single retry."""
     hook_style = HOOKS[index % len(HOOKS)]
     lang_name = LANGUAGES.get(language, language)
     prompt = SCRIPT_PROMPT.format(
@@ -248,11 +255,14 @@ async def run_stage2_single_script(
         market=market,
         language=lang_name,
     )
-    return await ask_gemini(
+    script_obj, _issues = await ask_validated(
+        ask_gemini,
         prompt=prompt,
         schema=Script,
         stage="script",
+        validate=lambda s: validate_script(s, language=language),
     )
+    return script_obj
 
 
 async def run_stage2(
@@ -797,7 +807,13 @@ async def rewrite_script(
         pain_point=payload.segment.pain_point,
         hook=hook_style,
     )
-    result = await ask_gemini(prompt=prompt, schema=Script, stage="rewrite_script")
+    result, _issues = await ask_validated(
+        ask_gemini,
+        prompt=prompt,
+        schema=Script,
+        stage="rewrite_script",
+        validate=lambda s: validate_script(s, language=payload.language),
+    )
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -854,7 +870,19 @@ async def rewrite_reason_lines(
         reason_title=payload.reason.title,
         reason_why=payload.reason.why,
     )
-    result = await ask_gemini(prompt=prompt, schema=ReasonLinesRewriteResponse, stage="rewrite_reason_lines")
+    result, _issues = await ask_validated(
+        ask_gemini,
+        prompt=prompt,
+        schema=ReasonLinesRewriteResponse,
+        stage="rewrite_reason_lines",
+        validate=lambda r: validate_reason_lines_rewrite(
+            r,
+            target_line_ids=payload.target_line_ids,
+            total_script_lines=len(payload.full_script),
+            language=payload.language,
+        ),
+        build_correction=build_reason_lines_correction_prompt,
+    )
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -1069,7 +1097,13 @@ async def regenerate_section(
                     pain_point=segment.pain_point,
                     hook=hook_style,
                 )
-                script_obj = await ask_gemini(prompt=prompt, schema=Script, stage="rewrite_script")
+                script_obj, _issues = await ask_validated(
+                    ask_gemini,
+                    prompt=prompt,
+                    schema=Script,
+                    stage="rewrite_script",
+                    validate=lambda s: validate_script(s, language=payload.language),
+                )
                 return index, script_obj
 
             tasks = [

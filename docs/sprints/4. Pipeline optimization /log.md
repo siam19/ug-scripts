@@ -100,3 +100,71 @@ Running the eval harness live on Vertex AI across all 12 products (36 scripts) p
 
 * Added [`apps/api/tests/test_evals.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/tests/test_evals.py) covering word counts, Bengali ratio, banned phrases, repetition loops, and mock harness smoke runs.
 * Executed full test suite: **39 passed, 0 failed** in 7.91s.
+
+---
+
+## Log Entry: Phase 1 Deterministic Validation & Single Retry
+
+**Date**: 2026-11-11  
+**Status**: Phase 1 Complete & Verified with Full Evaluation Run  
+**Evaluation Report**: [`apps/api/evals/results/phase1_validation/report.md`](file:///home/bast0k/projects/ug-script-writer/apps/api/evals/results/phase1_validation/report.md)
+
+### 1. In-Code Validator Engine ([`apps/api/validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/validation.py))
+
+* **Deterministic Validation (`validate_script`):**
+  - Implemented 0ms pure Python validation evaluating scripts against deterministic quality constraints:
+    - **Hook Brevity:** Hook must be $\le 10$ words (hard rejection at $> 12$ words).
+    - **Word Count Range:** Strict range enforcement ($\pm 10\%$ tolerance, 54–99 words).
+    - **Structure & Ordering:** First line must be `hook`, last line must be `cta`, no intermediate hooks. Sequential line IDs 1..N.
+    - **Reason Citations:** Exactly 3 reasons; referenced `line_ids` must exist and be contiguous without overlapping.
+    - **Banned Clichés:** Scans line text against English & Bengali infomercial cliché lists.
+    - **Repetition & Loop Collapse:** Scans for character repeats $\ge 4$, repetitive n-grams, or low lexical diversity ($< 0.45$).
+    - **Script Ratio:** Ensures Bengali scripts maintain $\ge 65\%$ Bengali Unicode characters.
+  - Returns structured `ValidationResult` containing hard issues, soft warnings, and `quality_flags`.
+
+* **Targeted Recovery Prompts:**
+  - `build_correction_prompt`: Formats exact numbered violation feedback ("Hook was 16 words, maximum allowed is 10 words") and previous script output.
+  - Dynamically lowers temperature to `0.2` if repetition loops are detected to collapse entropy and break degenerate sampling loops.
+
+* **Safe Execution Wrapper (`ask_validated`):**
+  - Calls Gemini for generation; runs validator on output.
+  - If valid: returns immediately (zero latency penalty for passing scripts).
+  - If hard violations are detected: triggers a single correction retry with violation feedback.
+  - Returns the best attempt with remaining issues recorded as `quality_flags` (never 500s or crashes user experience).
+  - Also added `validate_reason_lines_rewrite` and `build_reason_lines_correction_prompt` for reason line regeneration endpoints.
+
+### 2. API Integration ([`apps/api/main.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/main.py))
+
+* Integrated `ask_validated` into:
+  - `run_stage2_single_script` (Stage 2 parallel script generation).
+  - `/regenerate/script` (full script rewrite).
+  - `/regenerate/section` (hook/cta sectional rewrite).
+  - `/regenerate/reason-lines` (body reason lines rewrite).
+
+### 3. Test Suite Verification ([`apps/api/tests/test_script_validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/tests/test_script_validation.py))
+
+* Added 11 focused test cases covering:
+  - Valid scripts passing without issues.
+  - Hook length violations and correction prompt generation.
+  - Structure order and non-contiguous reason citations.
+  - Banned cliché detection in English and Bengali.
+  - Repetition loops and temperature dropping to 0.2.
+  - Bengali script ratio checks.
+  - Single retry behavior, returning best attempt, and `quality_flags`.
+  - Reason lines rewrite validation.
+* Full test suite execution: **50 passed, 0 failed** in 7.27s.
+
+### 4. Evaluation Benchmark Results: Baseline vs. Phase 1
+
+Live evaluation across all 12 Bangladesh advertiser products (36 scripts generated):
+
+| Metric | Baseline (Phase 0) | Phase 1 Validation | Delta / Target |
+| :--- | :---: | :---: | :--- |
+| **Hook Brevity ($\le 12$ words)** | **`8.3%`** (15.0w avg) | **`100.0%`** (8.3w avg) | **+91.7%** (Target: $\ge 90\%$) ✅ |
+| **Repetition Loop Violations** | **`1 hit`** (Pepsodent) | **`0 hits`** (0.0%) | **Eliminated** (Target: 0 hits) ✅ |
+| **Structure Pass Rate** | **`91.7%`** | **`97.2%`** | **+5.5%** (Target: $\ge 95\%$) ✅ |
+| **Hard Rules Pass Rate** | — | **`86.1%`** | (Target: $\ge 90\%$) |
+| **Word Count Range Pass Rate** | **`100.0%`** (72.6w avg) | **`88.9%`** (62.8w avg) | Within target ($\ge 85\%$) ✅ |
+| **Banned Cliché Violations** | **`2 hits`** (5.6%) | **`1 hit`** (2.8%) | Dropped by 50% |
+| **Bengali Script Ratio** | **`0.985`** | **`0.988`** | Optimal ✅ |
+

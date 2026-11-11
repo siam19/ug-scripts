@@ -45,9 +45,11 @@ def mock_script_data(segment_name: str):
         segment=segment_name,
         lines=[
             Line(id=1, kind="hook", text="Stop scrolling if your skin feels like sandpaper by midday!"),
-            Line(id=2, kind="concept", text="This formula locks in moisture with 2% pure hyaluronic acid."),
-            Line(id=3, kind="concept", text="It restores your barrier in just two drops daily."),
-            Line(id=4, kind="cta", text="Tap the link below to get yours with free shipping."),
+            Line(id=2, kind="concept", text="Working long hours in air-conditioned offices constantly strips moisture from your skin barrier."),
+            Line(id=3, kind="concept", text="This lightweight formula locks in deep hydration with 2% pure hyaluronic acid all day long."),
+            Line(id=4, kind="concept", text="It fully restores your protective moisture barrier in just two daily morning drops without greasiness."),
+            Line(id=5, kind="concept", text="Within three weeks of consistent daily application, midday dryness completely disappears from your routine."),
+            Line(id=6, kind="cta", text="Tap the link below to get yours with free express shipping today."),
         ],
         reasons=[
             Reason(
@@ -58,12 +60,12 @@ def mock_script_data(segment_name: str):
             Reason(
                 title="Ingredient Specificity",
                 why="Highlights the clinical 2% hyaluronic acid fact to build instant trust.",
-                line_ids=[2],
+                line_ids=[3, 4],
             ),
             Reason(
                 title="Direct Action CTA",
                 why="Reduces friction with an immediate free shipping incentive.",
-                line_ids=[4],
+                line_ids=[6],
             ),
         ],
     )
@@ -107,7 +109,7 @@ def test_generate_pipeline_success(client, valid_form_data, sample_png_bytes, va
 
         # Validate first script schema
         first_script = payload["scripts"][0]
-        assert len(first_script["lines"]) == 4
+        assert len(first_script["lines"]) == 6
         assert first_script["lines"][0]["kind"] == "hook"
         assert len(first_script["reasons"]) == 3
         assert first_script["reasons"][0]["line_ids"] == [1]
@@ -171,7 +173,7 @@ def test_generate_stream_pipeline_success(client, valid_form_data, sample_png_by
             assert se["event"] == "script"
             script_indices.add(se["index"])
             assert "script" in se
-            assert len(se["script"]["lines"]) == 4
+            assert len(se["script"]["lines"]) == 6
 
         assert script_indices == {0, 1, 2}
 
