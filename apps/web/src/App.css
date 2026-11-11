@@ -413,71 +413,27 @@
   background: var(--cta);
 }
 
-/* Animated activity ticker between stage title and note */
+/* Dynamic activity text between stage title and note (plain grey with moving ellipsis) */
 .stage-ticker-wrap {
-  height: 28px;
-  overflow: hidden;
+  min-height: 20px;
   display: flex;
   align-items: center;
-  margin: 6px 0 4px;
-}
-
-.stage-ticker-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  background: var(--tint);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  animation: stageTickerSwipeUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: transform, opacity;
+  margin: 3px 0 2px;
 }
 
 .stage-ticker-text {
   font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--concept, #2a55d4);
-  letter-spacing: -0.01em;
-  white-space: nowrap;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: -0.005em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
 }
 
-.stage-ticker-arrow {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  line-height: 1;
-  color: var(--concept, #2a55d4);
-  transform: translateY(-0.5px);
-  animation: stageTickerNudge 1.2s ease-in-out infinite;
-}
-
-@keyframes stageTickerSwipeUp {
-  0% {
-    opacity: 0;
-    transform: translateY(14px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes stageTickerNudge {
-  0%, 100% {
-    transform: translateY(-0.5px) translateX(0);
-  }
-  50% {
-    transform: translateY(-0.5px) translateX(2.5px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stage-ticker-item {
-    animation: none;
-  }
-  .stage-ticker-arrow {
-    animation: none;
-  }
+.stage-ticker-dots {
+  display: inline-block;
+  min-width: 14px;
+  text-align: left;
 }
 
 @keyframes pulse {
@@ -839,10 +795,18 @@
 .lines {
   display: grid;
   gap: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .line {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 14px 14px 14px 12px;
   border-left: 3px solid transparent;
   border-radius: 12px;
@@ -852,6 +816,10 @@
   display: grid;
   grid-template-columns: 52px minmax(0, 1fr);
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   border-radius: 8px;
   cursor: pointer;
 }
@@ -950,7 +918,7 @@
 
 .ln-gutter {
   display: grid;
-  gap: 2px;
+  gap: 0px;
   align-content: start;
   justify-items: start;
 }
@@ -970,6 +938,9 @@
   display: grid;
   gap: 6px;
   justify-items: start;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
 }
 .ln-meta-row {
   display: flex;
@@ -2058,6 +2029,12 @@
   cursor: pointer;
   transition: background-color 0.12s, color 0.12s;
 }
+.tb-label-full {
+  display: inline;
+}
+.tb-label-short {
+  display: none;
+}
 .tb-btn:hover:not([data-disabled]):not(:disabled) {
   background: var(--tint);
   color: var(--ink);
@@ -2487,15 +2464,59 @@
   }
   .line.is-selected {
     margin-bottom: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .line {
+    padding: 10px 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .line-hit {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .ln-gutter {
+    width: 32px;
+  }
+  .ln-id {
+    font-size: 1.0625rem;
+  }
+  .ln-time {
+    font-size: 0.6875rem;
   }
   .line-toolbar {
     position: static;
+    display: flex;
+    align-items: center;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     height: auto;
-    margin-top: 12px;
-    padding: 6px 8px;
+    margin-top: 10px;
+    padding: 4px 6px;
     justify-content: space-between;
     box-shadow: none;
+    border-radius: 10px;
+  }
+  .tb-btn {
+    padding: 0 8px;
+    height: 30px;
+    font-size: 0.75rem;
+    gap: 4px;
+    flex-shrink: 1;
+  }
+  .tb-label-full {
+    display: none;
+  }
+  .tb-label-short {
+    display: inline;
   }
   .drawer {
     top: auto;
@@ -2513,6 +2534,31 @@
     to {
       transform: translateY(0);
     }
+  }
+}
+
+@media (max-width: 460px) {
+  .panel {
+    padding: 16px 12px;
+  }
+  .line {
+    padding: 8px 6px;
+  }
+  .line-hit {
+    grid-template-columns: 28px minmax(0, 1fr);
+    gap: 6px;
+  }
+  .ln-gutter {
+    width: 28px;
+  }
+  .line-toolbar {
+    padding: 3px 4px;
+    gap: 2px;
+  }
+  .tb-btn {
+    padding: 0 6px;
+    font-size: 0.6875rem;
+    gap: 3px;
   }
 }
 

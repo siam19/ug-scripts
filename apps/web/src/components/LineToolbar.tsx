@@ -39,13 +39,14 @@ export function LineToolbar(p: LineToolbarProps) {
   return (
     <Toolbar.Root className="line-toolbar" aria-label="Line actions">
       <Toolbar.Button className="tb-btn" disabled={busy} onClick={p.onEdit}>
-        <IconPencil size={16} aria-hidden="true" />
+        <IconPencil size={15} aria-hidden="true" />
         <span>Edit</span>
       </Toolbar.Button>
 
       <Toolbar.Button className="tb-btn" disabled={busy} onClick={p.onRephrase}>
-        <IconWand size={16} aria-hidden="true" />
-        <span>{p.pending === 'rephrase' ? 'Rephrasing…' : 'Rephrase'}</span>
+        <IconWand size={15} aria-hidden="true" />
+        <span className="tb-label-full">{p.pending === 'rephrase' ? 'Rephrasing…' : 'Rephrase'}</span>
+        <span className="tb-label-short">{p.pending === 'rephrase' ? 'Rephrase…' : 'Rephrase'}</span>
       </Toolbar.Button>
 
       <Toolbar.Button
@@ -53,8 +54,9 @@ export function LineToolbar(p: LineToolbarProps) {
         disabled={busy}
         onClick={p.onRegenerate}
       >
-        <IconRefresh size={16} aria-hidden="true" />
-        <span>{p.pending === 'regenerate' ? 'Regenerating…' : 'Regenerate'}</span>
+        <IconRefresh size={15} aria-hidden="true" />
+        <span className="tb-label-full">{p.pending === 'regenerate' ? 'Regenerating…' : 'Regenerate'}</span>
+        <span className="tb-label-short">{p.pending === 'regenerate' ? 'Regen…' : 'Regen'}</span>
       </Toolbar.Button>
 
       <Toolbar.Separator className="tb-sep" />

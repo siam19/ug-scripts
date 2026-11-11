@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { LineKind } from 'api-types';
-import { IconArrowBackUp, IconCheck, IconMicrophone, IconVideo, IconX } from '@tabler/icons-react';
+import { IconArrowBackUp, IconCheck, IconSpeakerphone, IconVideo, IconX } from '@tabler/icons-react';
 import { LineToolbar } from './LineToolbar';
 import type { LinePending } from './LineToolbar';
 import { ScopeBadge } from './VersionRail';
@@ -198,7 +198,7 @@ export function ScriptLine(p: Props) {
             </span>
             {line.speaker && (
               <span className="ln-speaker-badge">
-                <IconMicrophone size={12} className="ln-speaker-icon" aria-hidden="true" />
+                <IconSpeakerphone size={12} className="ln-speaker-icon" aria-hidden="true" />
                 <span>{line.speaker}</span>
               </span>
             )}

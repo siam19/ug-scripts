@@ -157,3 +157,32 @@
 * In [`App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css), constrained `.gate-card` to `max-width: min(440px, calc(100vw - 32px))` and `.gate-backdrop` to `max-width: 100vw; overflow-x: hidden;` to eliminate horizontal overscroll on narrow mobile viewports.
 * Standardized `.chip-val-tag` and `.shelf-lang` badges to `border-radius: 999px` full pills.
 
+---
+
+## Log Entry 7: Mobile Line Layout Polish, Selection Width Fix, & Loading Text Refinement
+
+**Date**: 2026-11-11  
+**Status**: Completed  
+**Files Modified**: [`apps/web/src/components/LoadingState.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/LoadingState.tsx), [`apps/web/src/components/ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`apps/web/src/components/LineToolbar.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/LineToolbar.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css)
+
+---
+
+### 1. Plain Grey Activity Text with Moving Ellipsis (`LoadingState.tsx`)
+* Replaced the blue pill container with plain editorial grey typography (`color: var(--ink-3); font-size: 0.8125rem; font-weight: 500;`).
+* Integrated a dynamic moving ellipsis (`.` $\rightarrow$ `..` $\rightarrow$ `...`) cycling every 420ms alongside clean activity descriptions.
+
+### 2. Gutter Width Optimization on Mobile (`ScriptLine.tsx`, `App.css`)
+* **Problem**: `.ln-gutter` previously occupied `52px` with a `12px` gap (64px total), severely compressing dialogue line width on mobile screens and causing words to wrap awkwardly.
+* **Resolution**:
+  - In `@media (max-width: 699px)`, reduced gutter to `32px` with an `8px` gap (and `28px` with `6px` gap on `< 460px`).
+  - Scaled line number `.ln-id` to `1.0625rem` and timestamp `.ln-time` to `0.6875rem`.
+  - Reclaimed over 28px of horizontal width for Bengali/English dialogue text.
+
+### 3. Selected Line Width Expansion Fix (`LineToolbar.tsx`, `App.css`)
+* **Problem**: Selecting a line previously mounted `<LineToolbar />` with rigid unconstrained button widths (~339px min-content), pushing the parent `.line` and `.script-card` beyond viewport bounds and breaking mobile layouts.
+* **Resolution**:
+  - Enforced `box-sizing: border-box; width: 100%; max-width: 100%; min-width: 0;` on `.line`, `.line-hit`, `.ln-body`, and `.line-toolbar`.
+  - Added `.tb-label-full` and `.tb-label-short` in [`LineToolbar.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/LineToolbar.tsx) so button labels collapse cleanly on mobile ("Regenerate" $\rightarrow$ "Regen") without horizontal overflow.
+  - Adjusted mobile `.tb-btn` padding (`0 8px` on `< 699px`, `0 6px` on `< 460px`), keeping the entire toolbar securely within 250px on phones.
+
+
