@@ -2,43 +2,55 @@
 Curated Demo Products Catalog & Provider.
 
 Queries Firestore 'demo_products' collection.
-Falls back to 3 core presets if Firestore is unreachable or unseeded.
+Falls back to core presets if Firestore is unreachable or unseeded.
 """
 
 from typing import Any
 from schemas import DemoProduct
 from firebase import get_firestore_client
 
+GCS_IMAGE_BASE_URL = "https://storage.googleapis.com/ugstar-demo-assets/demo-products"
+
 FALLBACK_DEMO_PRODUCTS: list[dict[str, Any]] = [
     {
-        "id": "keshabati-hair-oil",
-        "name": "Keshabati Cold-Pressed Onion & Black Seed Hair Oil",
-        "category": "Skincare",
-        "description": "100% natural cold-pressed hair oil with red onion extract, kalonji, and rosemary essential oil. Reduces hair fall and repairs roots in 3 weeks without any greasy buildup.",
+        "id": "radhuni-biryani-masala",
+        "name": "Radhuni Biryani Masala (40g)",
+        "category": "Food & Beverage",
+        "description": "Aromatic blend of traditional spices formulated according to authentic biryani recipes in a convenient 40gm pack. Makes rich, fragrant mutton, beef, and chicken biryani at home with ease.",
         "market": "Bangladesh",
         "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1608248597359-58a5e8ff7174?auto=format&fit=crop&w=600&q=80",
+        "image_url": f"{GCS_IMAGE_BASE_URL}/01_radhuni_biryani_masala.webp",
         "order": 1,
     },
     {
-        "id": "sundarban-wild-honey",
-        "name": "Sundarban Raw Wildflower Honey",
-        "category": "Food & Beverage",
-        "description": "Unpasteurized raw honey harvested ethically from deep mangrove forests in the Sundarbans. Rich in natural floral enzymes, antioxidants, and pure raw nectar.",
+        "id": "taaga-female-dress",
+        "name": "Taaga Flared Maroon Cotton Long Dress",
+        "category": "Fashion",
+        "description": "Contemporary flared long dress from Aarong's Taaga sub-brand crafted from 100% breathable cotton in rich maroon with screen-printed motifs. Tailored for comfort in tropical heat.",
         "market": "Bangladesh",
         "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80",
+        "image_url": f"{GCS_IMAGE_BASE_URL}/06_taaga_female_dress.webp",
         "order": 2,
     },
     {
         "id": "saffron-glow-serum",
         "name": "Kashmiri Saffron & 5% Niacinamide Radiance Serum",
         "category": "Skincare",
-        "description": "Lightweight brightening daytime serum blending real Kashmiri saffron extract with 5% niacinamide and hyaluronic acid to fade hyperpigmentation and restore a natural glow.",
-        "market": "Global",
+        "description": "Lightweight daytime serum blending real Kashmiri saffron stigma extract with niacinamide and alpha arbutin. Fades stubborn dark spots, acne hyperpigmentation, and sun tanning.",
+        "market": "Bangladesh",
         "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80",
+        "image_url": f"{GCS_IMAGE_BASE_URL}/kashmiri_saffron_serum.jpg",
         "order": 3,
+    },
+    {
+        "id": "bengal-linen-shirt",
+        "name": "Bengal Breeze 100% Breathable Linen Shirt",
+        "category": "Fashion",
+        "description": "Relaxed-fit Cuban collar casual shirt woven from pure European flax linen. Ultra-breathable, moisture-wicking fabric designed specifically for hot and humid tropical summers.",
+        "market": "Bangladesh",
+        "language": "en",
+        "image_url": f"{GCS_IMAGE_BASE_URL}/bengal_linen_shirt.jpg",
+        "order": 4,
     },
 ]
 
@@ -55,7 +67,7 @@ async def get_demo_products_catalog() -> list[DemoProduct]:
     """
     Fetches demo products from Firestore 'demo_products' collection.
     If Firestore has records, returns them.
-    If Firestore is empty or unreachable, returns 3 core fallback products.
+    If Firestore is empty or unreachable, returns core fallback products.
     """
     global _cached_demo_products
     if _cached_demo_products is not None:
@@ -73,9 +85,9 @@ async def get_demo_products_catalog() -> list[DemoProduct]:
                 _cached_demo_products = products
                 return products
     except Exception as e:
-        print(f"Notice: Firestore demo_products lookup fell back to 3 presets: {e}")
+        print(f"Notice: Firestore demo_products lookup fell back to presets: {e}")
 
-    # Fallback to only 3 core products if Firestore is unseeded
+    # Fallback to core products if Firestore is unseeded or offline
     fallback = [DemoProduct(**p) for p in FALLBACK_DEMO_PRODUCTS]
     _cached_demo_products = fallback
     return fallback

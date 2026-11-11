@@ -1,21 +1,29 @@
 """
 CLI Script to Seed Firestore with Demo Products and Initial Access Codes.
 
+De-seeds previous sample products from Firestore (except Kashmiri Saffron Serum
+and Bengal Breeze Linen Shirt) and populates the 12 evaluation products from
+apps/api/evals/products with their corresponding images.
+
 Usage:
   cd apps/api
   .venv/bin/python scripts/seed_firestore.py
 """
 
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add apps/api to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from firebase import get_firestore_client
 from google.cloud import firestore
+
+GCS_IMAGE_BASE_URL = "https://storage.googleapis.com/ugstar-demo-assets/demo-products"
 
 INITIAL_ACCESS_CODES = [
     {
@@ -70,47 +78,8 @@ INITIAL_ACCESS_CODES = [
     },
 ]
 
-ALL_12_DEMO_PRODUCTS = [
-    {
-        "id": "keshabati-hair-oil",
-        "name": "Keshabati Cold-Pressed Onion & Black Seed Hair Oil",
-        "category": "Skincare",
-        "description": "100% natural cold-pressed hair oil with red onion extract, kalonji, and rosemary essential oil. Reduces postpartum and stress-induced hair fall in 3 weeks without any greasy buildup.",
-        "market": "Bangladesh",
-        "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1608248597359-58a5e8ff7174?auto=format&fit=crop&w=600&q=80",
-        "order": 1,
-    },
-    {
-        "id": "sundarban-wild-honey",
-        "name": "Sundarban Raw Kalijira Wildflower Honey",
-        "category": "Food & Beverage",
-        "description": "Unpasteurized, unprocessed deep-forest raw honey harvested ethically by traditional Mowali honey collectors in the Sundarbans mangrove. Packed with live enzymes and natural pollen.",
-        "market": "Bangladesh",
-        "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=600&q=80",
-        "order": 2,
-    },
-    {
-        "id": "dhaka-leather-sneaker",
-        "name": "Dacca Artisanal Full-Grain Leather Sneakers",
-        "category": "Fashion",
-        "description": "Handcrafted minimalist low-top sneakers made from vegetable-tanned Bangladeshi cowhide leather with shock-absorbing memory foam insoles. Built for all-day city walking.",
-        "market": "Bangladesh",
-        "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=80",
-        "order": 3,
-    },
-    {
-        "id": "acousticwave-earbuds",
-        "name": "AcousticWave Pro ANC Wireless Earbuds",
-        "category": "Tech / Gadgets",
-        "description": "Active noise cancelling wireless earbuds with 42dB ambient sound reduction, quad-mic ENC for crystal-clear calls in Dhaka traffic, and 36-hour total battery life.",
-        "market": "Bangladesh",
-        "language": "bn",
-        "image_url": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=600&q=80",
-        "order": 4,
-    },
+# The 2 existing products specifically retained by user request
+KEPT_DEMO_PRODUCTS = [
     {
         "id": "saffron-glow-serum",
         "name": "Kashmiri Saffron & 5% Niacinamide Radiance Serum",
@@ -118,8 +87,7 @@ ALL_12_DEMO_PRODUCTS = [
         "description": "Lightweight daytime serum blending real Kashmiri saffron stigma extract with niacinamide and alpha arbutin. Fades stubborn dark spots, acne hyperpigmentation, and sun tanning.",
         "market": "Bangladesh",
         "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&w=600&q=80",
-        "order": 5,
+        "image_url": f"{GCS_IMAGE_BASE_URL}/kashmiri_saffron_serum.jpg",
     },
     {
         "id": "bengal-linen-shirt",
@@ -128,77 +96,62 @@ ALL_12_DEMO_PRODUCTS = [
         "description": "Relaxed-fit Cuban collar casual shirt woven from pure European flax linen. Ultra-breathable, moisture-wicking fabric designed specifically for hot and humid tropical summers.",
         "market": "Bangladesh",
         "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?auto=format&fit=crop&w=600&q=80",
-        "order": 6,
-    },
-    {
-        "id": "zenith-mesh-chair",
-        "name": "Zenith Posture Pro Ergonomic Mesh Chair",
-        "category": "Home & Living",
-        "description": "Engineered home office chair with 3D adaptive lumbar support, 4D adjustable armrests, and high-tensile breathable Korean mesh that eliminates lower back stiffness.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1580481077195-c290c0b32252?auto=format&fit=crop&w=600&q=80",
-        "order": 7,
-    },
-    {
-        "id": "hydrabarrier-water-gel",
-        "name": "HydraBarrier 5-Ceramide Water Gel Moisturizer",
-        "category": "Skincare",
-        "description": "Oil-free gel moisturizer powered by 5 essential bio-identical ceramides, multi-molecular hyaluronic acid, and centella asiatica. Restores skin moisture barrier without clogging pores.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=600&q=80",
-        "order": 8,
-    },
-    {
-        "id": "pulsetitan-smart-ring",
-        "name": "PulseTitan Titanium Sleep & HRV Smart Ring",
-        "category": "Tech / Gadgets",
-        "description": "Medical-grade lightweight titanium smart ring tracking sleep stages, heart rate variability (HRV), skin temperature deviations, and readiness score with zero screen distractions.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=600&q=80",
-        "order": 9,
-    },
-    {
-        "id": "ceremonial-matcha-tin",
-        "name": "Uji First-Harvest Ceremonial Grade Matcha",
-        "category": "Food & Beverage",
-        "description": "Stone-ground green tea powder from shade-grown spring tea leaves in Uji, Kyoto. Smooth umami flavor with zero bitterness, offering clean sustained alertness without coffee jitters.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=600&q=80",
-        "order": 10,
-    },
-    {
-        "id": "damascus-chef-knife",
-        "name": "Kurogane 8-Inch Damascus Steel Chef Knife",
-        "category": "Home & Living",
-        "description": "67-layer hammered Damascus steel kitchen knife with an ultra-sharp 15-degree double-bevel cutting edge and ergonomic pakkawood handle for effortless vegetable and meat slicing.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1593618998160-e34014e67546?auto=format&fit=crop&w=600&q=80",
-        "order": 11,
-    },
-    {
-        "id": "aeroflex-leggings",
-        "name": "AeroFlex Squat-Proof Seamless High-Rise Leggings",
-        "category": "Fashion",
-        "description": "Buttery-soft compression gym leggings engineered with four-way stretch interlock knit, non-slip ribbed waistband, and zero center seam to prevent chafing during intense workouts.",
-        "market": "Global",
-        "language": "en",
-        "image_url": "https://images.unsplash.com/photo-1506617564039-2f3b650b7010?auto=format&fit=crop&w=600&q=80",
-        "order": 12,
+        "image_url": f"{GCS_IMAGE_BASE_URL}/bengal_linen_shirt.jpg",
     },
 ]
 
 
+def load_eval_products() -> list[dict[str, Any]]:
+    """Loads and formats the 12 curated eval products from apps/api/evals/products."""
+    products_dir = Path(__file__).resolve().parent.parent / "evals" / "products"
+    if not products_dir.exists():
+        raise FileNotFoundError(f"Evals products directory not found: {products_dir}")
+
+    eval_files = sorted(products_dir.glob("*.json"))
+    items: list[dict[str, Any]] = []
+
+    for file_path in eval_files:
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+        except Exception as e:
+            print(f"Skipping invalid json {file_path}: {e}")
+            continue
+
+        image_filename = raw.get("image_filename", "")
+        image_url = f"{GCS_IMAGE_BASE_URL}/{image_filename}" if image_filename else ""
+
+        items.append({
+            "id": raw["id"],
+            "name": raw["name"],
+            "category": raw.get("category", "General"),
+            "description": raw.get("description", ""),
+            "market": raw.get("market", "Bangladesh"),
+            "language": raw.get("default_language", "bn"),
+            "image_url": image_url,
+        })
+
+    return items
+
+
+def get_all_demo_products() -> list[dict[str, Any]]:
+    """Builds the complete ordered catalog: 12 eval products + 2 kept products."""
+    eval_products = load_eval_products()
+    combined = eval_products + KEPT_DEMO_PRODUCTS
+
+    for idx, p in enumerate(combined, start=1):
+        p["order"] = idx
+
+    return combined
+
+
 async def seed():
-    print(f"Connecting to Firestore for project '{os.environ.get('GOOGLE_CLOUD_PROJECT', 'ugstar')}'...")
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "ugstar")
+    print(f"Connecting to Firestore for project '{project_id}'...")
     db = get_firestore_client()
 
-    # Seed access codes
+    # 1. Seed Access Codes
+    print("\n--- Seeding Access Codes ---")
     for item in INITIAL_ACCESS_CODES:
         code = item["code"]
         doc_ref = db.collection("access_codes").document(code)
@@ -209,14 +162,35 @@ async def seed():
         })
         print(f"✓ Seeded access code: {code}")
 
-    # Seed demo products
-    for p in ALL_12_DEMO_PRODUCTS:
-        slug = p["id"]
-        doc_ref = db.collection("demo_products").document(slug)
-        await doc_ref.set(p)
-        print(f"✓ Seeded demo product: {slug} ({p['name']})")
+    # 2. Build target product catalog
+    target_products = get_all_demo_products()
+    target_ids = {p["id"] for p in target_products}
 
-    print("\n✅ Firestore seeding completed successfully!")
+    print(f"\n--- De-seeding Removed Products (Target: {len(target_products)} products) ---")
+    demo_col = db.collection("demo_products")
+    existing_docs = await demo_col.get()
+
+    deleted_count = 0
+    for doc in existing_docs:
+        if doc.id not in target_ids:
+            await demo_col.document(doc.id).delete()
+            print(f"🗑 De-seeded old product: {doc.id}")
+            deleted_count += 1
+
+    if deleted_count == 0:
+        print("No obsolete products found in Firestore.")
+    else:
+        print(f"Successfully removed {deleted_count} obsolete products.")
+
+    # 3. Seed new/updated demo products
+    print("\n--- Seeding Updated Demo Products ---")
+    for p in target_products:
+        slug = p["id"]
+        doc_ref = demo_col.document(slug)
+        await doc_ref.set(p)
+        print(f"✓ Seeded demo product: #{p['order']} {slug} ({p['name']})")
+
+    print(f"\n✅ Firestore seeding completed! Total demo products in shelf: {len(target_products)}")
 
 
 if __name__ == "__main__":

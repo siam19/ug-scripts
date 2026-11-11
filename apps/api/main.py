@@ -391,6 +391,15 @@ async def resolve_image_bytes(
         if demo.id in _demo_image_cache:
             return _demo_image_cache[demo.id], "image/jpeg", demo.image_url
 
+        # Fast local fallback: load from eval products images if available on disk
+        img_filename = demo.image_url.split("/")[-1]
+        local_img = Path(__file__).resolve().parent / "evals" / "products" / "images" / img_filename
+        if local_img.is_file():
+            content = local_img.read_bytes()
+            ct = "image/webp" if local_img.suffix.lower() == ".webp" else "image/jpeg"
+            _demo_image_cache[demo.id] = content
+            return content, ct, demo.image_url
+
         try:
             async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as http_client:
                 img_res = await http_client.get(demo.image_url)

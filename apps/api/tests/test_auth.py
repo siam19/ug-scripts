@@ -112,4 +112,4 @@ def test_get_demo_products_catalog(client):
     assert "products" in data
     # Verified fallback returns 3 products
     assert len(data["products"]) >= 3
-    assert data["products"][0]["id"] == "keshabati-hair-oil"
+    assert data["products"][0]["id"] == "radhuni-biryani-masala"
