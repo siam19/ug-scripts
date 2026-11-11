@@ -168,3 +168,66 @@ Live evaluation across all 12 Bangladesh advertiser products (36 scripts generat
 | **Banned Cliché Violations** | **`2 hits`** (5.6%) | **`1 hit`** (2.8%) | Dropped by 50% |
 | **Bengali Script Ratio** | **`0.985`** | **`0.988`** | Optimal ✅ |
 
+---
+
+## Log Entry: Phase 2 Facts, Angles & Segment Gating (Two-Tier Grounding)
+
+**Date**: 2026-11-11  
+**Status**: Phase 2 Complete, Tested & Integrated into UI  
+
+### 1. Two-Tier Schema Architecture ([`apps/api/schemas.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/schemas.py))
+
+* **Structured `Fact` Model:**
+  - Added `Fact` schema with `id: int`, `text: str`, and `value: Literal["core", "visual", "trivia"]`.
+  - Added `coerce_facts_list` validator to maintain 100% backward compatibility for legacy `list[str]` payloads.
+* **Creative `Angle` Model:**
+  - Defined `AngleType`:
+    - **Claim-bearing:** `benefit`, `demo`, `objection` (must cite $\ge 1$ verified fact ID in `based_on`).
+    - **Framing:** `use_moment`, `identity`, `contrast`, `audience_context` (situational context; cannot make unsupported claims).
+  - Defined `Angle` schema with `id`, `type`, `text`, `based_on: list[int]`, and `source: "model" | "user"`.
+* **Grounded `Segment` Model:**
+  - Added `lead_angle_ids: list[int]` to `Segment` mapping target customer personas to specific creative angles.
+  - Added `product_appearance: str` and `angles: list[Angle]` to `Segments` and `GenerateResponse`.
+
+### 2. Deterministic Grounding & Gating Engine ([`apps/api/grounding.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/grounding.py))
+
+* **`sanitize_references`:**
+  - Drops nonexistent fact IDs from angle references.
+  - Drops claim-bearing angles left without valid fact grounding.
+  - Filters out dangling angle IDs from segment lead angles.
+* **`gate_and_repair_segments`:**
+  - Gating check ensures every customer segment possesses at least one claim-bearing lead angle.
+  - Automatically assigns prioritized claim-bearing fallbacks (`benefit` > `demo` > `objection`) if a segment is missing one.
+  - Synthesizes a grounded benefit from core facts if no claim-bearing angles were generated.
+* **`build_segment_script_context`:**
+  - Isolates all `core` facts + any `visual` or `trivia` facts explicitly cited by the segment's lead angles.
+  - Eradicates irrelevant packaging trivia from contaminating script generation.
+* **`format_grounding_prompt_block`:**
+  - Formats facts and angles cleanly for Gemini prompts with explicit two-tier separation.
+
+### 3. Prompt & Generation Pipeline Updates ([`apps/api/prompts.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/prompts.py), [`apps/api/main.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/main.py))
+
+* Updated `SEGMENT_PROMPT` (version `v2.0`): Multi-modal extraction now simultaneously extracts categorized facts, photo-derived product appearance, 8-12 diverse creative angles, and 3 differentiated segments with assigned lead angles.
+* Updated `SCRIPT_PROMPT` and `REWRITE_SCRIPT_PROMPT` (version `v2.0`): Injected two-tier grounding rule: claims must trace to facts; situations and objections come from creative angles.
+* Wired grounding and gating into `run_stage1`, `run_stage2`, `/generate`, `/generate-stream`, `/regenerate/script`, and `/regenerate/section`.
+
+### 4. Frontend Angle Presentation & Lead Angle Badging
+
+* **Creative Angles UI ([`apps/web/src/components/AngleChips.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/AngleChips.tsx)):**
+  - Built an interactive, styled creative angles panel directly beneath verified facts in `ResultsView.tsx`.
+  - Filter tabs: `All`, `Claim-bearing`, and `Framing`.
+  - Category badges with distinct color accents for Benefit, Visual Demo, Objection, Moment, Identity, Contrast, and Context.
+  - Direct fact reference pills (e.g. `Fact #1, #3`) indicating exactly which product facts ground each claim-bearing angle.
+* **Segment Card Lead Angle Badging ([`apps/web/src/components/SegmentCard.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/SegmentCard.tsx)):**
+  - Segment cards now clearly display their assigned `Lead Angles`, showing viewers which psychological hooks and objections shaped each audience segment's script.
+* **Fact Significance Indicator ([`apps/web/src/components/FactChips.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/FactChips.tsx)):**
+  - Displays low-key tags for `visual` and dimmed dashed border for `trivia` facts.
+
+### 5. Verification & Testing
+
+* Added [`apps/api/tests/test_grounding.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/tests/test_grounding.py) covering reference sanitization, segment gating, context building, prompt formatting, and legacy string coercion (6/6 passing).
+* Full backend test suite: **56 passed, 0 failed** in 6.98s.
+* Frontend build (`bun --filter web build`): **0 errors**, clean production build.
+* Live Vertex AI pilot run verified 100% hard pass rate with creative divergence across segments.
+
+

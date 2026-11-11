@@ -6,8 +6,79 @@ These Pydantic models define both:
 2. The HTTP API response contracts for FastAPI and generated OpenAPI/TypeScript types.
 """
 
-from typing import Literal
-from pydantic import BaseModel, Field
+from typing import Any, Literal
+from pydantic import BaseModel, Field, field_validator
+
+
+class Fact(BaseModel):
+    """
+    A concrete, verifiable fact drawn strictly from the product description or packaging.
+    """
+    id: int = Field(..., description="1-based sequential fact ID")
+    text: str = Field(..., description="Concise statement of the verifiable fact")
+    value: Literal["core", "visual", "trivia"] = Field(
+        ...,
+        description=(
+            "Significance of the fact: 'core' (what the product is/does, specs, seller guarantees), "
+            "'visual' (visible attributes like color, pattern, shape, packaging), "
+            "or 'trivia' (minor details that rarely persuade on their own)"
+        ),
+    )
+
+
+AngleType = Literal[
+    "benefit",
+    "demo",
+    "objection",
+    "use_moment",
+    "identity",
+    "contrast",
+    "audience_context",
+]
+
+CLAIM_BEARING: set[str] = {"benefit", "demo", "objection"}
+
+
+class Angle(BaseModel):
+    """
+    A creative angle or framing direction for script ideation.
+    """
+    id: int = Field(..., description="1-based sequential angle ID")
+    type: AngleType = Field(
+        ...,
+        description=(
+            "Type of angle: claim-bearing ('benefit', 'demo', 'objection' which must cite based_on fact IDs) "
+            "or framing ('use_moment', 'identity', 'contrast', 'audience_context' which set up situation/feeling)"
+        ),
+    )
+    text: str = Field(..., description="Creative angle statement or execution prompt")
+    based_on: list[int] = Field(
+        default_factory=list,
+        description="List of 1-based Fact IDs that ground this angle (required for claim-bearing types)",
+    )
+    source: Literal["model", "user"] = Field(
+        default="model",
+        description="Origin of the angle ('model' from AI generation, 'user' added manually in UI)",
+    )
+
+
+def coerce_facts_list(v: Any) -> list[Any]:
+    """Coerces bare string or legacy dict facts into Fact-compatible dicts."""
+    if isinstance(v, list):
+        coerced = []
+        for i, item in enumerate(v):
+            if isinstance(item, str):
+                coerced.append({"id": i + 1, "text": item, "value": "core"})
+            elif isinstance(item, dict) and "id" not in item:
+                coerced.append({
+                    "id": i + 1,
+                    "text": item.get("text", ""),
+                    "value": item.get("value", "core"),
+                })
+            else:
+                coerced.append(item)
+        return coerced
+    return v
 
 
 class Segment(BaseModel):
@@ -30,20 +101,37 @@ class Segment(BaseModel):
         ...,
         description="Short-form platforms where this segment is most active (e.g., ['TikTok', 'Instagram Reels', 'YouTube Shorts'])"
     )
+    lead_angle_ids: list[int] = Field(
+        default_factory=list,
+        description="1-based angle IDs that this customer segment's script should lead with",
+    )
 
 
 class Segments(BaseModel):
     """
     Output model for Stage 1 of the pipeline: verifiable product facts and 3 audience segments.
     """
-    product_facts: list[str] = Field(
+    product_facts: list[Fact] = Field(
         ...,
         description="5 to 8 concrete, verifiable facts drawn ONLY from the product description and image"
+    )
+    product_appearance: str = Field(
+        default="",
+        description="2-3 sentences describing what the product looks like (shape, colors, materials, packaging) from the photo"
+    )
+    angles: list[Angle] = Field(
+        default_factory=list,
+        description="8 to 12 creative angles spanning claim-bearing and framing types"
     )
     segments: list[Segment] = Field(
         ...,
         description="Exactly 3 distinct customer segments that differ in motivation and context"
     )
+
+    @field_validator("product_facts", mode="before")
+    @classmethod
+    def coerce_product_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class Line(BaseModel):
@@ -104,9 +192,17 @@ class GenerateResponse(BaseModel):
     """
     The top-level response payload returned by POST /generate.
     """
-    facts: list[str] = Field(
+    facts: list[Fact] = Field(
         ...,
         description="5 to 8 verifiable product facts extracted from image and description"
+    )
+    product_appearance: str = Field(
+        default="",
+        description="2-3 sentences describing what the product looks like (shape, colors, materials, packaging) from the photo"
+    )
+    angles: list[Angle] = Field(
+        default_factory=list,
+        description="8 to 12 creative angles spanning claim-bearing and framing types"
     )
     segments: list[Segment] = Field(
         ...,
@@ -116,6 +212,11 @@ class GenerateResponse(BaseModel):
         ...,
         description="The 3 customized scripts, each targeting one of the customer segments"
     )
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +258,18 @@ class SegmentRegenerateRequest(BaseModel):
     category: str = Field(..., description="Product category")
     market: str = Field(..., description="Target market (e.g., 'Bangladesh', 'Global')")
     language: Literal['en', 'bn'] = Field(..., description="Target language ('en' for English, 'bn' for Bangla)")
-    facts: list[str] = Field(..., min_length=1, description="Current active product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current active product facts")
+    angles: list[Angle] = Field(default_factory=list, description="Current active creative angles")
     current_segment: Segment = Field(..., description="The segment being replaced")
     existing_segment_names: list[str] = Field(
         default_factory=list,
         description="Names of other active segments to guarantee the new one is unique"
     )
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class ScriptRewriteRequest(BaseModel):
@@ -174,12 +281,18 @@ class ScriptRewriteRequest(BaseModel):
     category: str = Field(..., description="Product category")
     market: str = Field(..., description="Target market")
     language: Literal['en', 'bn'] = Field(..., description="Target language")
-    facts: list[str] = Field(..., min_length=1, description="Current product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current product facts")
+    angles: list[Angle] = Field(default_factory=list, description="Current creative angles")
     segment: Segment = Field(..., description="Target segment (may include user edits)")
     hook_style: str | None = Field(
         None,
         description="Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')"
     )
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class ReasonLinesRewriteRequest(BaseModel):
@@ -190,11 +303,16 @@ class ReasonLinesRewriteRequest(BaseModel):
     name: str = Field(..., description="Product name")
     market: str = Field(..., description="Target market")
     language: Literal['en', 'bn'] = Field(..., description="Target language")
-    facts: list[str] = Field(..., min_length=1, description="Current product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current product facts")
     segment: Segment = Field(..., description="Target segment")
     full_script: list[ScriptLineContext] = Field(..., description="Complete sequence of visible script lines")
     target_line_ids: list[int] = Field(..., min_length=1, description="The sequential line IDs to replace")
     reason: ReasonInfo = Field(..., description="The rationale technique to regenerate and strengthen")
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class ReasonLinesRewriteResponse(BaseModel):
@@ -216,7 +334,7 @@ class LineRephraseRequest(BaseModel):
     name: str = Field(..., description="Product name")
     market: str = Field(..., description="Target market")
     language: Literal['en', 'bn'] = Field(..., description="Target language")
-    facts: list[str] = Field(..., min_length=1, description="Current product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current product facts")
     segment: Segment = Field(..., description="Target customer segment")
     script_context: list[ScriptLineContext] = Field(
         ...,
@@ -229,6 +347,11 @@ class LineRephraseRequest(BaseModel):
         default_factory=list,
         description="List of tones already attempted for this line (e.g. ['punchy', 'casual'])"
     )
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class LineRephraseResponse(BaseModel):
@@ -247,7 +370,7 @@ class LineRegenerateRequest(BaseModel):
     name: str = Field(..., description="Product name")
     market: str = Field(..., description="Target market")
     language: Literal['en', 'bn'] = Field(..., description="Target language")
-    facts: list[str] = Field(..., min_length=1, description="Current product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current product facts")
     segment: Segment = Field(..., description="Target customer segment")
     script_context: list[ScriptLineContext] = Field(
         ...,
@@ -256,6 +379,11 @@ class LineRegenerateRequest(BaseModel):
     line_id: int = Field(..., description="Line ID of the target line")
     current_text: str = Field(..., description="Existing dialogue being replaced")
     kind: Literal['hook', 'concept', 'cta'] = Field(..., description="Role of the line")
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 class LineRegenerateResponse(BaseModel):
@@ -284,11 +412,17 @@ class SectionRegenerateRequest(BaseModel):
     category: str = Field(..., description="Product category")
     market: str = Field(..., description="Target market")
     language: Literal['en', 'bn'] = Field(..., description="Target language")
-    facts: list[str] = Field(..., min_length=1, description="Current active product facts")
+    facts: list[Fact] = Field(..., min_length=1, description="Current active product facts")
+    angles: list[Angle] = Field(default_factory=list, description="Current active creative angles")
     slots: list[SlotConfig] = Field(
         default_factory=list,
         description="Configuration for each slot indicating whether to preserve or replace"
     )
+
+    @field_validator("facts", mode="before")
+    @classmethod
+    def coerce_facts(cls, v: Any) -> list[Any]:
+        return coerce_facts_list(v)
 
 
 # ---------------------------------------------------------------------------

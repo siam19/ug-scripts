@@ -109,11 +109,17 @@ export function FactChips({ facts, onEdit, onRemove, onAdd }: Props) {
         }
 
         const edited = fact.original === null || fact.text !== fact.original;
+        const isTrivia = fact.value === 'trivia';
         return (
           <li
             key={fact.id}
-            className={`chip chip-fact chip-animated${edited ? ' is-edited' : ''}`}
+            className={`chip chip-fact chip-animated${edited ? ' is-edited' : ''}${isTrivia ? ' is-trivia' : ''}`}
           >
+            {fact.value && fact.value !== 'core' && (
+              <span className="chip-val-tag" title={isTrivia ? 'Minor product detail' : 'Visual appearance detail'}>
+                {fact.value}
+              </span>
+            )}
             {edited && (
               <span
                 className="chip-dot"

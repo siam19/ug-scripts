@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { Segment } from 'api-types';
+import type { Angle, Segment } from 'api-types';
 import {
   IconBookmark,
   IconCheck,
@@ -8,9 +8,11 @@ import {
   IconUsers,
   IconX,
 } from '@tabler/icons-react';
+import { formatAngleType } from './AngleChips';
 
 interface Props {
   segment: Segment;
+  angles?: Angle[];
   edited?: boolean;
   isSaved?: boolean;
   canSave?: boolean;
@@ -20,6 +22,7 @@ interface Props {
 
 export function SegmentCard({
   segment,
+  angles = [],
   edited = false,
   isSaved = false,
   canSave = true,
@@ -31,6 +34,10 @@ export function SegmentCard({
   const [who, setWho] = useState(segment.who);
   const [platforms, setPlatforms] = useState<string[]>(segment.platforms);
   const [newPlatform, setNewPlatform] = useState('');
+
+  const leadAngles = (angles || []).filter(
+    (a) => segment.lead_angle_ids?.includes(a.id),
+  );
 
   function startEdit() {
     setName(segment.name);
@@ -178,6 +185,23 @@ export function SegmentCard({
                 </li>
               ))}
             </ul>
+
+            {leadAngles.length > 0 && (
+              <div className="segment-lead-angles">
+                <span className="segment-lead-title">Lead Angles:</span>
+                <div className="segment-lead-chips">
+                  {leadAngles.map((a) => (
+                    <span
+                      key={a.id}
+                      className={`angle-badge angle-badge-${a.type}`}
+                      title={a.text}
+                    >
+                      {formatAngleType(a.type)}: “{a.text.slice(0, 50)}{a.text.length > 50 ? '…' : ''}”
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="segment-actions">
               {onSave && (

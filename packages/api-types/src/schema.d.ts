@@ -301,6 +301,40 @@ export interface components {
              */
             message: string;
         };
+        /**
+         * Angle
+         * @description A creative angle or framing direction for script ideation.
+         */
+        Angle: {
+            /**
+             * Id
+             * @description 1-based sequential angle ID
+             */
+            id: number;
+            /**
+             * Type
+             * @description Type of angle: claim-bearing ('benefit', 'demo', 'objection' which must cite based_on fact IDs) or framing ('use_moment', 'identity', 'contrast', 'audience_context' which set up situation/feeling)
+             * @enum {string}
+             */
+            type: "benefit" | "demo" | "objection" | "use_moment" | "identity" | "contrast" | "audience_context";
+            /**
+             * Text
+             * @description Creative angle statement or execution prompt
+             */
+            text: string;
+            /**
+             * Based On
+             * @description List of 1-based Fact IDs that ground this angle (required for claim-bearing types)
+             */
+            based_on?: number[];
+            /**
+             * Source
+             * @description Origin of the angle ('model' from AI generation, 'user' added manually in UI)
+             * @default model
+             * @enum {string}
+             */
+            source: "model" | "user";
+        };
         /** Body_generate_generate_post */
         Body_generate_generate_post: {
             /**
@@ -439,6 +473,28 @@ export interface components {
             products?: components["schemas"]["DemoProduct"][];
         };
         /**
+         * Fact
+         * @description A concrete, verifiable fact drawn strictly from the product description or packaging.
+         */
+        Fact: {
+            /**
+             * Id
+             * @description 1-based sequential fact ID
+             */
+            id: number;
+            /**
+             * Text
+             * @description Concise statement of the verifiable fact
+             */
+            text: string;
+            /**
+             * Value
+             * @description Significance of the fact: 'core' (what the product is/does, specs, seller guarantees), 'visual' (visible attributes like color, pattern, shape, packaging), or 'trivia' (minor details that rarely persuade on their own)
+             * @enum {string}
+             */
+            value: "core" | "visual" | "trivia";
+        };
+        /**
          * GenerateResponse
          * @description The top-level response payload returned by POST /generate.
          */
@@ -447,7 +503,18 @@ export interface components {
              * Facts
              * @description 5 to 8 verifiable product facts extracted from image and description
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
+            /**
+             * Product Appearance
+             * @description 2-3 sentences describing what the product looks like (shape, colors, materials, packaging) from the photo
+             * @default
+             */
+            product_appearance: string;
+            /**
+             * Angles
+             * @description 8 to 12 creative angles spanning claim-bearing and framing types
+             */
+            angles?: components["schemas"]["Angle"][];
             /**
              * Segments
              * @description The 3 customer segments identified for the product
@@ -512,7 +579,7 @@ export interface components {
              * Facts
              * @description Current product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
             /** @description Target customer segment */
             segment: components["schemas"]["Segment"];
             /**
@@ -580,7 +647,7 @@ export interface components {
              * Facts
              * @description Current product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
             /** @description Target customer segment */
             segment: components["schemas"]["Segment"];
             /**
@@ -689,7 +756,7 @@ export interface components {
              * Facts
              * @description Current product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
             /** @description Target segment */
             segment: components["schemas"]["Segment"];
             /**
@@ -807,7 +874,12 @@ export interface components {
              * Facts
              * @description Current product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
+            /**
+             * Angles
+             * @description Current creative angles
+             */
+            angles?: components["schemas"]["Angle"][];
             /** @description Target segment (may include user edits) */
             segment: components["schemas"]["Segment"];
             /**
@@ -847,7 +919,12 @@ export interface components {
              * Facts
              * @description Current active product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
+            /**
+             * Angles
+             * @description Current active creative angles
+             */
+            angles?: components["schemas"]["Angle"][];
             /**
              * Slots
              * @description Configuration for each slot indicating whether to preserve or replace
@@ -879,6 +956,11 @@ export interface components {
              * @description Short-form platforms where this segment is most active (e.g., ['TikTok', 'Instagram Reels', 'YouTube Shorts'])
              */
             platforms: string[];
+            /**
+             * Lead Angle Ids
+             * @description 1-based angle IDs that this customer segment's script should lead with
+             */
+            lead_angle_ids?: number[];
         };
         /**
          * SegmentRegenerateRequest
@@ -911,7 +993,12 @@ export interface components {
              * Facts
              * @description Current active product facts
              */
-            facts: string[];
+            facts: components["schemas"]["Fact"][];
+            /**
+             * Angles
+             * @description Current active creative angles
+             */
+            angles?: components["schemas"]["Angle"][];
             /** @description The segment being replaced */
             current_segment: components["schemas"]["Segment"];
             /**

@@ -1,4 +1,4 @@
-import type { LineKind, Segment } from 'api-types';
+import type { Angle, LineKind, Segment } from 'api-types';
 
 export type Uid = string;
 
@@ -69,7 +69,9 @@ export interface ScriptDoc {
 // --- Workspace State ---
 export interface FactItem {
   id: Uid;
+  factId?: number;
   text: string;
+  value?: 'core' | 'visual' | 'trivia';
   original: string | null; // original null = user-added
 }
 
@@ -98,6 +100,7 @@ export interface WorkspaceMeta {
 export interface Workspace {
   meta: WorkspaceMeta;
   facts: FactItem[];
+  angles: Angle[];
   slots: SegmentSlot[];
   activeSlotId: Uid;
   selection: Selection;

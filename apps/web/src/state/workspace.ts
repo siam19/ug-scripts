@@ -1,4 +1,4 @@
-import type { LineKind, Script, Segment } from 'api-types';
+import type { Angle, Fact, LineKind, Script, Segment } from 'api-types';
 import { factsHash, hash, segmentHash } from './hash';
 import {
   collectVisibleUids,
@@ -25,7 +25,8 @@ import { generateUid } from './uid';
 export type WorkspaceAction =
   | {
       type: 'SEED_WORKSPACE';
-      facts: string[];
+      facts: (Fact | string)[];
+      angles?: Angle[];
       segments: Segment[];
       meta: WorkspaceMeta;
     }
@@ -74,6 +75,7 @@ export type WorkspaceAction =
 export const INITIAL_WORKSPACE: Workspace = {
   meta: { name: '', market: '', language: 'en' },
   facts: [],
+  angles: [],
   slots: [],
   activeSlotId: '',
   selection: { kind: 'none' },
@@ -132,12 +134,20 @@ export function buildScriptDoc(
 export function workspaceReducer(state: Workspace, action: WorkspaceAction): Workspace {
   switch (action.type) {
     case 'SEED_WORKSPACE': {
-      const currentFactsHash = hash(action.facts.map((f) => f.trim()).sort().join('\n'));
-      const factItems: FactItem[] = action.facts.map((text) => ({
-        id: generateUid(),
-        text,
-        original: text,
-      }));
+      const factStrings = action.facts.map((f) => (typeof f === 'string' ? f : f.text));
+      const currentFactsHash = hash(factStrings.map((f) => f.trim()).sort().join('\n'));
+      const factItems: FactItem[] = action.facts.map((f, idx) => {
+        const text = typeof f === 'string' ? f : f.text;
+        const value = typeof f === 'object' && f.value ? f.value : 'core';
+        const factId = typeof f === 'object' && f.id ? f.id : idx + 1;
+        return {
+          id: generateUid(),
+          factId,
+          text,
+          value,
+          original: text,
+        };
+      });
 
       const slots: SegmentSlot[] = action.segments.map((seg) => ({
         id: generateUid(),
@@ -151,6 +161,7 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
       return {
         meta: action.meta,
         facts: factItems,
+        angles: action.angles || [],
         slots,
         activeSlotId: slots[0]?.id ?? '',
         selection: { kind: 'none' },

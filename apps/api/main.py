@@ -45,6 +45,12 @@ from auth import (
 )
 from demo_products import find_demo_product, get_demo_products_catalog
 from firebase import get_firestore_client
+from grounding import (
+    build_segment_script_context,
+    format_grounding_prompt_block,
+    gate_and_repair_segments,
+    sanitize_references,
+)
 from rate_limiter import check_regeneration_rate_limit
 from validation import (
     Issue,
@@ -57,8 +63,10 @@ from validation import (
 from schemas import (
     AccessRequestCreate,
     AccessRequestResponse,
+    Angle,
     DemoProduct,
     DemoProductsResponse,
+    Fact,
     GenerateResponse,
     Line,
     LineRegenerateRequest,
@@ -217,19 +225,22 @@ async def run_stage1(
     market: str,
     parts: Sequence[Any] = (),
 ) -> Segments:
-    """Executes Stage 1: multi-modal extraction of facts and segments."""
+    """Executes Stage 1: multi-modal extraction of facts, appearance, angles, and segments with grounding."""
     segment_prompt = SEGMENT_PROMPT.format(
         name=name,
         category=category,
         description=description,
         market=market,
     )
-    return await ask_gemini(
+    raw_segments: Segments = await ask_gemini(
         prompt=segment_prompt,
         schema=Segments,
         parts=parts,
         stage="extract",
     )
+    sanitized = sanitize_references(raw_segments)
+    gated = gate_and_repair_segments(sanitized)
+    return gated
 
 
 async def run_stage2_single_script(
@@ -239,15 +250,25 @@ async def run_stage2_single_script(
     category: str,
     market: str,
     language: str,
-    facts_text: str,
+    facts_text: str | None = None,
+    facts: Sequence[Fact | str] | None = None,
+    angles: Sequence[Angle] | None = None,
 ) -> Script:
     """Generates a single UGC script with deterministic in-code validation and single retry."""
+    if facts is not None:
+        selected_facts, lead_angles = build_segment_script_context(segment, facts, angles or ())
+        grounding_text = format_grounding_prompt_block(selected_facts, lead_angles)
+    elif facts_text is not None:
+        grounding_text = facts_text
+    else:
+        grounding_text = ""
+
     hook_style = HOOKS[index % len(HOOKS)]
     lang_name = LANGUAGES.get(language, language)
     prompt = SCRIPT_PROMPT.format(
         name=name,
         category=category,
-        facts=facts_text,
+        facts=grounding_text,
         segment_name=segment.name,
         who=segment.who,
         pain_point=segment.pain_point,
@@ -270,13 +291,22 @@ async def run_stage2(
     category: str,
     market: str,
     language: str,
-    facts: list[str],
+    facts: Sequence[Fact | str],
     segments: list[Segment],
+    angles: Sequence[Angle] | None = None,
 ) -> list[Script]:
     """Executes Stage 2: parallel generation of 3 scripts (one per segment)."""
-    facts_text = "\n".join(f"- {fact}" for fact in facts)
     return await asyncio.gather(*[
-        run_stage2_single_script(i, s, name, category, market, language, facts_text)
+        run_stage2_single_script(
+            index=i,
+            segment=s,
+            name=name,
+            category=category,
+            market=market,
+            language=language,
+            facts=facts,
+            angles=angles or (),
+        )
         for i, s in enumerate(segments)
     ])
 
@@ -540,6 +570,7 @@ async def generate(
         language=language,
         facts=segs.product_facts,
         segments=segs.segments,
+        angles=segs.angles,
     )
 
     usage = acc.to_dict()
@@ -562,7 +593,9 @@ async def generate(
         demo_image_url=demo_img_url,
         request_payload={"name": name, "category": category, "market": market_clean, "language": language},
         response_payload={
-            "facts": segs.product_facts,
+            "facts": [f.model_dump() for f in segs.product_facts],
+            "product_appearance": segs.product_appearance,
+            "angles": [a.model_dump() for a in segs.angles],
             "segments": [s.model_dump() for s in segs.segments],
             "scripts": [s.model_dump() for s in scripts],
         },
@@ -572,6 +605,8 @@ async def generate(
     # 6. Build and Return Final Unified Response
     return GenerateResponse(
         facts=segs.product_facts,
+        product_appearance=segs.product_appearance,
+        angles=segs.angles,
         segments=segs.segments,
         scripts=scripts,
     )
@@ -628,14 +663,14 @@ async def generate_stream(
             # Emit Stage 1 facts and segments
             stage1_data = {
                 "event": "segments",
-                "facts": segs.product_facts,
+                "facts": [f.model_dump() for f in segs.product_facts],
+                "product_appearance": segs.product_appearance,
+                "angles": [a.model_dump() for a in segs.angles],
                 "segments": collected_segments,
             }
             yield f"data: {json.dumps(stage1_data)}\n\n"
 
             # 2. Stage 2: Parallel Script Generation (One per Segment)
-            facts_text = "\n".join(f"- {fact}" for fact in segs.product_facts)
-
             async def generate_single_script(index: int, segment: Segment) -> tuple[int, Script]:
                 script_obj = await run_stage2_single_script(
                     index=index,
@@ -644,7 +679,8 @@ async def generate_stream(
                     category=category,
                     market=market_clean,
                     language=language,
-                    facts_text=facts_text,
+                    facts=segs.product_facts,
+                    angles=segs.angles,
                 )
                 return index, script_obj
 
@@ -793,7 +829,10 @@ async def rewrite_script(
     """
     acc = start_token_tracking()
     lang_block = get_language_block(payload.language)
-    facts_text = format_facts_text(payload.facts)
+    selected_facts, lead_angles = build_segment_script_context(
+        payload.segment, payload.facts, payload.angles
+    )
+    facts_and_angles_text = format_grounding_prompt_block(selected_facts, lead_angles)
     hook_style = payload.hook_style or HOOKS[0]
 
     prompt = REWRITE_SCRIPT_PROMPT.format(
@@ -801,7 +840,7 @@ async def rewrite_script(
         category=payload.category,
         market=payload.market,
         language_block=lang_block,
-        facts=facts_text,
+        facts=facts_and_angles_text,
         segment_name=payload.segment.name,
         who=payload.segment.who,
         pain_point=payload.segment.pain_point,
@@ -1078,7 +1117,8 @@ async def regenerate_section(
             # Emit Stage 1 finalized segments
             stage1_data = {
                 "event": "segments",
-                "facts": payload.facts,
+                "facts": [f.model_dump() for f in payload.facts],
+                "angles": [a.model_dump() for a in payload.angles],
                 "segments": collected_segments,
             }
             yield f"data: {json.dumps(stage1_data)}\n\n"
@@ -1086,12 +1126,16 @@ async def regenerate_section(
             # 2. Parallel Script Generation across all 3 segments
             async def generate_single_script(index: int, segment: Segment) -> tuple[int, Script]:
                 hook_style = HOOKS[index % len(HOOKS)]
+                selected_facts, lead_angles = build_segment_script_context(
+                    segment, payload.facts, payload.angles
+                )
+                facts_and_angles_text = format_grounding_prompt_block(selected_facts, lead_angles)
                 prompt = REWRITE_SCRIPT_PROMPT.format(
                     name=payload.name,
                     category=payload.category,
                     market=payload.market,
                     language_block=lang_block,
-                    facts=facts_text,
+                    facts=facts_and_angles_text,
                     segment_name=segment.name,
                     who=segment.who,
                     pain_point=segment.pain_point,

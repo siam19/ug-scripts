@@ -4,6 +4,9 @@
 import type { components, paths } from './schema.d.ts';
 
 export type GenerateResponse = components['schemas']['GenerateResponse'];
+export type Fact = components['schemas']['Fact'];
+export type Angle = components['schemas']['Angle'];
+export type AngleType = components['schemas']['Angle']['type'];
 export type Segment = components['schemas']['Segment'];
 export type Script = components['schemas']['Script'];
 export type Line = components['schemas']['Line'];
@@ -37,7 +40,9 @@ export interface TokenUsage {
 }
 
 export interface ProgressiveGenerateResponse {
-  facts: string[];
+  facts: (Fact | string)[];
+  product_appearance?: string;
+  angles?: Angle[];
   segments: Segment[];
   scripts: (Script | null)[];
 }

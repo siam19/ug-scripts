@@ -20,10 +20,10 @@ from typing import Any
 # ---------------------------------------------------------------------------
 PIPELINE_VERSION = "s4.0"
 PROMPT_VERSIONS: dict[str, str] = {
-    "segment": "v1.0",
-    "script": "v1.0",
-    "regenerate_segment": "v1.0",
-    "rewrite_script": "v1.0",
+    "segment": "v2.0",
+    "script": "v2.0",
+    "regenerate_segment": "v2.0",
+    "rewrite_script": "v2.0",
     "rewrite_reason_lines": "v1.0",
     "rephrase_line": "v1.0",
     "regenerate_line": "v1.0",
@@ -48,7 +48,7 @@ LANGUAGE_BLOCK = """LANGUAGE INSTRUCTION:
 """
 
 # ---------------------------------------------------------------------------
-# Stage 1: Multi-modal extraction (unchanged from Sprint 1)
+# Stage 1: Multi-modal extraction (Sprint 4: Two-Tier Grounding)
 # Format variables: {name}, {category}, {description}, {market}
 # ---------------------------------------------------------------------------
 
@@ -60,22 +60,48 @@ Name: {name}
 Category: {category}
 Description: {description}
 The attached image is the product photo. Read it closely: packaging
-text, ingredients/specs, colors, size cues, anything a viewer notices.
+text, ingredients/specs, colors, size cues, shape, anything a viewer notices.
 
 LANGUAGE REQUIREMENT:
-- All product facts and customer segments MUST ALWAYS be written in English.
+- All product facts, product appearance, creative angles, and customer segments MUST ALWAYS be written in English.
 
 TASK
-1. product_facts: 5-8 concrete, verifiable facts drawn ONLY from the
-   description and image in English. No invented claims.
-2. segments: exactly 3 customer segments most likely to buy in English. They must
-   differ in motivation, not just age. For each: name, who (age range,
-   situation, daily context), pain_point (in their own words in English), platforms.
-Be specific. 'Young professionals' is too vague.
+1. product_facts: 5-8 concrete, verifiable facts drawn ONLY from the description and image in English.
+   Seller-provided description claims outrank photo-derived ones. No invented claims.
+   For each fact:
+   - id: sequential 1-based integer (1, 2, 3...)
+   - text: concise factual statement
+   - value:
+     * "core": what the product is or does, key specifications, seller guarantees, materials, capacity
+     * "visual": visible product attribute (color, pattern, shape, packaging look)
+     * "trivia": minor detail that rarely persuades on its own (small labels, fittings, minor design details)
+
+2. product_appearance: 2-3 sentences describing what the product looks like (shape, colors, materials, packaging) from the photo.
+
+3. angles: 8-12 creative angles spanning a healthy mix of claim-bearing and framing types.
+   Claim-bearing types assert something about the product and MUST cite at least one fact id in based_on:
+   - "benefit": an outcome the buyer gets, inferred from a fact (based_on: [fact_id, ...])
+   - "demo": something that can be shown on camera to visually prove a fact (based_on: [fact_id, ...])
+   - "objection": a hesitation or friction the buyer has + fact-backed answer (based_on: [fact_id, ...])
+   Framing types set up situation or feeling and MUST NOT assert product capabilities (based_on is optional/empty):
+   - "use_moment": a specific situation in which the product is used
+   - "identity": how the buyer wants to feel or be seen
+   - "contrast": the buyer's current frustrating alternative / status quo without naming competitors
+   - "audience_context": cultural or market reality shaping the buyer's routine
+   For each angle: id (1..N), type, text, based_on (list of fact ids).
+
+4. segments: exactly 3 customer segments most likely to buy in English.
+   They must differ in motivation and lifestyle, not just age.
+   For each:
+   - name: clear, descriptive persona title
+   - who: demographics, life situation, daily context
+   - pain_point: core frustration or desire in their own words
+   - platforms: 1-3 short-form platforms
+   - lead_angle_ids: list of 2-3 angle IDs from above that this segment's ad should lead with (must include at least one claim-bearing angle).
 """
 
 # ---------------------------------------------------------------------------
-# Stage 2: Full script generation (unchanged from Sprint 1)
+# Stage 2: Full script generation (Sprint 4: Two-Tier Grounding)
 # Format variables: {name}, {category}, {facts}, {segment_name}, {who},
 #                   {pain_point}, {hook}, {market}, {language}
 # ---------------------------------------------------------------------------
@@ -84,8 +110,10 @@ SCRIPT_PROMPT = """You write scripts that a creator films on a phone for a short
 {market}. Write in {language}, spoken and natural, never ad-copy stiff.
 
 PRODUCT: {name} ({category})
-FACTS YOU MAY USE:
+
+GROUNDING FACTS & CREATIVE ANGLES:
 {facts}
+
 TARGET: {segment_name}: {who}. Pain point: {pain_point}
 HOOK STYLE: {hook}
 
@@ -93,11 +121,15 @@ RULES
 - 20-35 seconds spoken (about 60-90 words).
 - Structure: hook (first 3 seconds, must stop the scroll), concept, cta.
   Tag each line with its kind and number lines from 1.
-- Use only the facts above. No medical claims, no '#1', no made-up
-  numbers or testimonials.
+- TWO-TIER GROUNDING RULE:
+  * Every claim about the product must trace to a listed fact.
+  * Situations, scenes, feelings, objections and demonstrations come from the listed angles and your own creativity.
+  * Do not state an angle as an unverified product guarantee.
+  * Trivia facts may appear only as passing visual detail, never as the central claim of a line.
+  * No medical claims, no '#1', no made-up numbers or testimonials.
 - Speak to this segment's pain point, not to everyone.
 - reasons: exactly 3. Each names a specific technique in English (pattern
-  interrupt, specificity, objection handling, social proof, etc.),
+  interrupt, specificity, objection handling, demo/proof, etc.),
   explains in English why it works for THIS segment, and lists the line_ids that
   use it. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that does not do what you claim.
 """
@@ -157,7 +189,7 @@ in {market}.
 {language_block}
 
 PRODUCT: {name} ({category})
-FACTS YOU MAY USE:
+GROUNDING FACTS & CREATIVE ANGLES:
 {facts}
 TARGET: {segment_name}: {who}. Pain point: {pain_point}
 HOOK STYLE: {hook}
@@ -170,11 +202,15 @@ RULES
 - 20-35 seconds spoken (about 60-90 words).
 - Structure: hook (first 3 seconds, must stop the scroll), concept, cta.
   Tag each line with its kind and number lines from 1.
-- Use ONLY the facts listed above. No medical claims, no '#1', no
-  made-up numbers or testimonials.
+- TWO-TIER GROUNDING RULE:
+  * Every claim about the product must trace to a listed fact.
+  * Situations, scenes, feelings, objections and demonstrations come from the listed angles and your own creativity.
+  * Do not state an angle as an unverified product guarantee.
+  * Trivia facts may appear only as passing visual detail, never as the central claim of a line.
+  * No medical claims, no '#1', no made-up numbers or testimonials.
 - Speak directly to this segment's pain point, not to a generic audience.
 - reasons: exactly 3. Each names a specific technique in English (pattern
-  interrupt, specificity, objection handling, social proof, etc.),
+  interrupt, specificity, objection handling, demo/proof, etc.),
   explains in English why it works for THIS segment, and lists the line_ids that
   use it. Cited line_ids must be contiguous. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that
   does not demonstrate the claimed technique.
@@ -330,9 +366,21 @@ def get_language_block(language_code: str) -> str:
     return LANGUAGE_BLOCK.format(language_name=lang_name, language_code=language_code)
 
 
-def format_facts_text(facts: list[str]) -> str:
-    """Formats a list of facts as bulleted lines."""
-    return "\n".join(f"- {f.strip()}" for f in facts if f.strip())
+def format_facts_text(facts: Any) -> str:
+    """Formats a list of Fact objects, dicts, or strings as bulleted lines."""
+    lines = []
+    for idx, f in enumerate(facts):
+        if hasattr(f, "text"):
+            val = getattr(f, "value", "core")
+            fid = getattr(f, "id", idx + 1)
+            lines.append(f"- [{val.upper()}] (Fact #{fid}): {f.text.strip()}")
+        elif isinstance(f, dict):
+            val = f.get("value", "core")
+            fid = f.get("id", idx + 1)
+            lines.append(f"- [{val.upper()}] (Fact #{fid}): {f.get('text', '').strip()}")
+        else:
+            lines.append(f"- {str(f).strip()}")
+    return "\n".join(lines)
 
 
 def format_script_context(lines: list[Any]) -> str:

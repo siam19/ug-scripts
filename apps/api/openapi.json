@@ -790,6 +790,60 @@
         "title": "AccessRequestResponse",
         "description": "Response model for POST /auth/request-access."
       },
+      "Angle": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "1-based sequential angle ID"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "benefit",
+              "demo",
+              "objection",
+              "use_moment",
+              "identity",
+              "contrast",
+              "audience_context"
+            ],
+            "title": "Type",
+            "description": "Type of angle: claim-bearing ('benefit', 'demo', 'objection' which must cite based_on fact IDs) or framing ('use_moment', 'identity', 'contrast', 'audience_context' which set up situation/feeling)"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Creative angle statement or execution prompt"
+          },
+          "based_on": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Based On",
+            "description": "List of 1-based Fact IDs that ground this angle (required for claim-bearing types)"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "model",
+              "user"
+            ],
+            "title": "Source",
+            "description": "Origin of the angle ('model' from AI generation, 'user' added manually in UI)",
+            "default": "model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "text"
+        ],
+        "title": "Angle",
+        "description": "A creative angle or framing direction for script ideation."
+      },
       "Body_generate_generate_post": {
         "properties": {
           "name": {
@@ -1000,15 +1054,61 @@
         "title": "DemoProductsResponse",
         "description": "Response model for GET /demo-products."
       },
+      "Fact": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id",
+            "description": "1-based sequential fact ID"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Concise statement of the verifiable fact"
+          },
+          "value": {
+            "type": "string",
+            "enum": [
+              "core",
+              "visual",
+              "trivia"
+            ],
+            "title": "Value",
+            "description": "Significance of the fact: 'core' (what the product is/does, specs, seller guarantees), 'visual' (visible attributes like color, pattern, shape, packaging), or 'trivia' (minor details that rarely persuade on their own)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "value"
+        ],
+        "title": "Fact",
+        "description": "A concrete, verifiable fact drawn strictly from the product description or packaging."
+      },
       "GenerateResponse": {
         "properties": {
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "title": "Facts",
             "description": "5 to 8 verifiable product facts extracted from image and description"
+          },
+          "product_appearance": {
+            "type": "string",
+            "title": "Product Appearance",
+            "description": "2-3 sentences describing what the product looks like (shape, colors, materials, packaging) from the photo",
+            "default": ""
+          },
+          "angles": {
+            "items": {
+              "$ref": "#/components/schemas/Angle"
+            },
+            "type": "array",
+            "title": "Angles",
+            "description": "8 to 12 creative angles spanning claim-bearing and framing types"
           },
           "segments": {
             "items": {
@@ -1104,7 +1204,7 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
@@ -1208,7 +1308,7 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
@@ -1366,7 +1466,7 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
@@ -1551,12 +1651,20 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
             "title": "Facts",
             "description": "Current product facts"
+          },
+          "angles": {
+            "items": {
+              "$ref": "#/components/schemas/Angle"
+            },
+            "type": "array",
+            "title": "Angles",
+            "description": "Current creative angles"
           },
           "segment": {
             "$ref": "#/components/schemas/Segment",
@@ -1615,12 +1723,20 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
             "title": "Facts",
             "description": "Current active product facts"
+          },
+          "angles": {
+            "items": {
+              "$ref": "#/components/schemas/Angle"
+            },
+            "type": "array",
+            "title": "Angles",
+            "description": "Current active creative angles"
           },
           "slots": {
             "items": {
@@ -1666,6 +1782,14 @@
             "type": "array",
             "title": "Platforms",
             "description": "Short-form platforms where this segment is most active (e.g., ['TikTok', 'Instagram Reels', 'YouTube Shorts'])"
+          },
+          "lead_angle_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Lead Angle Ids",
+            "description": "1-based angle IDs that this customer segment's script should lead with"
           }
         },
         "type": "object",
@@ -1706,12 +1830,20 @@
           },
           "facts": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Fact"
             },
             "type": "array",
             "minItems": 1,
             "title": "Facts",
             "description": "Current active product facts"
+          },
+          "angles": {
+            "items": {
+              "$ref": "#/components/schemas/Angle"
+            },
+            "type": "array",
+            "title": "Angles",
+            "description": "Current active creative angles"
           },
           "current_segment": {
             "$ref": "#/components/schemas/Segment",

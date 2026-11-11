@@ -19,6 +19,7 @@ import type { SegmentSlot, Uid } from '../state/types';
 import { generateUid } from '../state/uid';
 import { INITIAL_WORKSPACE, workspaceReducer } from '../state/workspace';
 import { FactChips } from './FactChips';
+import { AngleChips } from './AngleChips';
 import { ReasonList } from './ReasonList';
 import type { ReasonDisplayItem } from './ReasonList';
 import { ScriptCard } from './ScriptCard';
@@ -107,6 +108,7 @@ export function ResultsView({
       dispatch({
         type: 'SEED_WORKSPACE',
         facts: data.facts,
+        angles: data.angles || [],
         segments: data.segments,
         meta: {
           name: meta.name || 'Product',
@@ -677,6 +679,19 @@ export function ResultsView({
         </section>
       )}
 
+      {/* 1b. Creative Angles Section */}
+      {workspace.angles && workspace.angles.length > 0 && (
+        <section className="results-section">
+          <div className="section-head">
+            <h2>Creative angles</h2>
+            <p>
+              Hooks, objection handling, and psychological moments connecting product facts to buyer motivations.
+            </p>
+          </div>
+          <AngleChips angles={workspace.angles} />
+        </section>
+      )}
+
       {/* 2. Customer Segments Section */}
       {workspace.slots.length > 0 && visibleSegmentsCount > 0 && (
         <section
@@ -737,6 +752,7 @@ export function ResultsView({
             {activeSlot && (
               <SegmentCard
                 segment={activeSlot.segment}
+                angles={workspace.angles}
                 edited={activeSlot.edited}
                 isSaved={isCurrentSaved}
                 canSave={Boolean(activeDoc && !activeDoc.pending)}

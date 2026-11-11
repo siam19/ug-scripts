@@ -1,6 +1,6 @@
 // apps/web/src/hooks/useGenerateScript.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ProgressiveGenerateResponse, Script, Segment, TokenUsage } from 'api-types';
+import type { Angle, Fact, ProgressiveGenerateResponse, Script, Segment, TokenUsage } from 'api-types';
 import type { FormValues } from '../types/form';
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -16,7 +16,9 @@ export interface FriendlyError {
 
 interface SegmentsEvent {
   event: 'segments';
-  facts: string[];
+  facts: (Fact | string)[];
+  product_appearance?: string;
+  angles?: Angle[];
   segments: Segment[];
 }
 

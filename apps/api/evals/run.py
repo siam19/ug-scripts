@@ -215,6 +215,7 @@ async def evaluate_single_product(
             language=lang,
             facts=segs.product_facts,
             segments=segs.segments,
+            angles=segs.angles,
         )
         t_stage2_end = time.perf_counter()
 
@@ -244,7 +245,9 @@ async def evaluate_single_product(
             "total_sec": total_sec,
         },
         "usage": acc.to_dict(),
-        "facts": segs.product_facts,
+        "facts": [f.model_dump() if hasattr(f, "model_dump") else f for f in segs.product_facts],
+        "angles": [a.model_dump() if hasattr(a, "model_dump") else a for a in getattr(segs, "angles", [])],
+        "product_appearance": getattr(segs, "product_appearance", ""),
         "segments": [s.model_dump() for s in segs.segments],
         "scripts": [s.model_dump() for s in scripts],
         "script_evals": script_evals,
