@@ -896,42 +896,73 @@
   flex-wrap: wrap;
 }
 .kind {
-  padding: 2px 9px;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
   background: var(--kind-bg);
-  border-radius: 6px;
+  border-radius: 999px;
   color: var(--kind);
   font-size: 0.8125rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .ln-speaker-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  background: rgba(15, 23, 42, 0.06);
-  border: 1px solid var(--line-strong, #cbd5e1);
-  border-radius: 5px;
-  font-size: 0.75rem;
+  gap: 5px;
+  padding: 3px 10px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.8125rem;
   font-weight: 600;
-  color: var(--ink-2, #475569);
-  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  letter-spacing: -0.01em;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.ln-speaker-icon {
+  flex-shrink: 0;
+  color: var(--ink-3);
 }
 .ln-visual-cue {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 5px 10px;
-  background: rgba(14, 165, 233, 0.08);
-  border-left: 3px solid #0ea5e9;
-  border-radius: 0 6px 6px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   font-size: 0.8125rem;
   font-style: normal;
-  color: #0369a1;
-  line-height: 1.4;
-  margin: 2px 0;
+  color: var(--ink-2);
+  line-height: 1.45;
+  margin: 3px 0 4px;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.ln-visual-cue-icon {
+  flex-shrink: 0;
+  color: var(--concept, #2a55d4);
+  opacity: 0.85;
 }
 .line.is-lit .kind,
 .line.is-selected .kind {
   background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.line.is-lit .ln-speaker-badge,
+.line.is-selected .ln-speaker-badge {
+  background: #fff;
+  border-color: rgba(20, 24, 26, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  color: var(--ink);
+}
+.line.is-lit .ln-visual-cue,
+.line.is-selected .ln-visual-cue {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(20, 24, 26, 0.12);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  color: var(--ink);
 }
 .ln-text {
   font-size: 1.1875rem;
@@ -1184,7 +1215,7 @@
 /* ---------- Creative Angles ---------- */
 .angles-container {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .angles-toolbar {
@@ -1197,23 +1228,27 @@
 
 .angles-filter-group {
   display: inline-flex;
+  align-items: center;
   gap: 4px;
   padding: 3px;
   background: var(--tint);
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid var(--line);
 }
 
 .angles-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   border: none;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.75rem;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
-  transition: background-color 0.15s, color 0.15s;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .angles-filter-btn:hover {
@@ -1221,84 +1256,276 @@
 }
 
 .angles-filter-btn.is-active {
-  background: var(--card);
+  background: #ffffff;
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  font-weight: 700;
+}
+
+.angles-count-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(20, 24, 26, 0.06);
+  color: var(--ink-2);
+}
+
+.angles-filter-btn.is-active .angles-count-pill {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.angles-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.angles-mobile-controls {
+  display: none;
+  align-items: center;
+  gap: 4px;
+}
+
+.angles-scroll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.angles-scroll-btn:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+  background: var(--tint);
 }
 
 .angles-toggle-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   background: transparent;
-  border: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--ink-2);
   cursor: pointer;
-  padding: 4px 6px;
+  padding: 4px 12px;
+  transition: all 0.15s ease;
 }
 
 .angles-toggle-btn:hover {
+  border-color: var(--ink);
   color: var(--ink);
+  background: var(--tint);
 }
 
 .angles-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 12px;
 }
 
 .angle-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
+  gap: 10px;
+  padding: 14px 16px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  border-radius: 14px;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .angle-card:hover {
+  transform: translateY(-2px);
   border-color: var(--line-strong);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 6px 18px rgba(20, 24, 26, 0.06);
+}
+
+/* Category left-border accents that echo the .line element card style */
+.angle-card.angle-card-benefit {
+  border-left: 3px solid var(--cta, #12805a);
+}
+.angle-card.angle-card-demo {
+  border-left: 3px solid var(--concept, #2a55d4);
+}
+.angle-card.angle-card-objection {
+  border-left: 3px solid var(--hook, #d95a07);
+}
+.angle-card.angle-card-use_moment {
+  border-left: 3px solid #7c3aed;
+}
+.angle-card.angle-card-identity {
+  border-left: 3px solid #db2777;
+}
+.angle-card.angle-card-contrast {
+  border-left: 3px solid #ea580c;
+}
+.angle-card.angle-card-audience_context {
+  border-left: 3px solid #475569;
 }
 
 .angle-card-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+}
+
+.angle-number-badge {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--ink-2);
+  background: var(--tint);
+  border: 1px solid var(--line);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tooltip wrapper for AngleType pill */
+.angle-type-pill-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: help;
+  outline: none;
 }
 
 .angle-badge {
   display: inline-flex;
   align-items: center;
-  font-size: 0.6875rem;
+  gap: 5px;
+  font-size: 0.75rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.01em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  transition: transform 0.12s ease;
+}
+
+.angle-type-pill-wrap:hover .angle-badge,
+.angle-type-pill-wrap:focus-visible .angle-badge {
+  transform: scale(1.03);
+}
+
+.angle-info-icon {
+  opacity: 0.65;
+  transition: opacity 0.15s ease;
+}
+
+.angle-type-pill-wrap:hover .angle-info-icon {
+  opacity: 1;
+}
+
+/* Floating tooltip explaining the angle type meaning */
+.angle-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: 230px;
+  padding: 10px 12px;
+  background: var(--ink, #14181a);
+  color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  animation: angleTooltipFade 0.16s ease-out;
+}
+
+.angle-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 5px;
+  border-style: solid;
+  border-color: var(--ink, #14181a) transparent transparent transparent;
+}
+
+@keyframes angleTooltipFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.angle-tooltip-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.angle-tooltip-head strong {
+  font-size: 0.8125rem;
+  color: #ffffff;
+}
+
+.angle-tooltip-cat {
+  font-size: 0.625rem;
+  font-weight: 700;
   text-transform: uppercase;
-  padding: 2px 7px;
-  border-radius: 5px;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.angle-tooltip-cat.claim {
+  background: rgba(18, 128, 90, 0.4);
+  color: #6ee7b7;
+}
+
+.angle-tooltip-cat.framing {
+  background: rgba(42, 85, 212, 0.4);
+  color: #93c5fd;
+}
+
+.angle-tooltip-desc {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #cbd5e1;
 }
 
 /* Category-specific badge styling */
 .angle-badge-benefit {
-  background: #d8f1e5;
-  color: #12805a;
+  background: var(--cta-bg, #d8f1e5);
+  color: var(--cta, #12805a);
   border: 1px solid rgba(18, 128, 90, 0.25);
 }
 
 .angle-badge-demo {
-  background: #e2eafc;
-  color: #2a55d4;
+  background: var(--concept-bg, #e2eafc);
+  color: var(--concept, #2a55d4);
   border: 1px solid rgba(42, 85, 212, 0.25);
 }
 
 .angle-badge-objection {
-  background: #fce8d9;
-  color: #d95a07;
+  background: var(--hook-bg, #fce8d9);
+  color: var(--hook, #d95a07);
   border: 1px solid rgba(217, 90, 7, 0.25);
 }
 
@@ -1327,26 +1554,17 @@
 }
 
 .angle-based-badge {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
   color: var(--ink-3);
   background: var(--tint);
   border: 1px solid var(--line);
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-
-.angle-number-badge {
-  font-size: 0.6875rem;
-  font-weight: 800;
-  color: var(--ink-2);
-  background: var(--tint);
-  border: 1px solid var(--line-strong);
-  padding: 1px 6px;
-  border-radius: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
 
 .angle-framing-badge {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   color: var(--ink-3);
   font-style: italic;
   margin-left: auto;
@@ -1354,9 +1572,40 @@
 
 .angle-text {
   margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.4;
+  font-size: 0.9375rem;
+  line-height: 1.5;
   color: var(--ink);
+  font-weight: 400;
+}
+
+/* Mobile-optimized swipeable card carousel for angles */
+@media (max-width: 680px) {
+  .angles-mobile-controls {
+    display: flex;
+  }
+  .angles-grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    gap: 12px;
+    padding: 4px 2px 14px;
+    margin: 0 -4px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  .angles-grid::-webkit-scrollbar {
+    height: 4px;
+  }
+  .angles-grid::-webkit-scrollbar-thumb {
+    background: var(--line-strong);
+    border-radius: 4px;
+  }
+  .angle-card {
+    flex: 0 0 84vw;
+    max-width: 320px;
+    scroll-snap-align: start;
+  }
 }
 
 /* Lead angles badge row on SegmentCard */
@@ -1388,63 +1637,63 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 5px;
-  background: var(--tint, #f8fafc);
-  border: 1px solid var(--line-strong, #cbd5e1);
-  color: var(--ink, #0f172a);
-  letter-spacing: 0.02em;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  letter-spacing: -0.01em;
   cursor: default;
-  transition: transform 0.1s, box-shadow 0.1s;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
 .lead-angle-pill:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 .lead-angle-pill.angle-pill-benefit {
-  background: #d8f1e5;
-  color: #12805a;
-  border-color: rgba(18, 128, 90, 0.35);
+  background: var(--cta-bg, #d8f1e5);
+  color: var(--cta, #12805a);
+  border-color: rgba(18, 128, 90, 0.3);
 }
 
 .lead-angle-pill.angle-pill-demo {
-  background: #e2eafc;
-  color: #2a55d4;
-  border-color: rgba(42, 85, 212, 0.35);
+  background: var(--concept-bg, #e2eafc);
+  color: var(--concept, #2a55d4);
+  border-color: rgba(42, 85, 212, 0.3);
 }
 
 .lead-angle-pill.angle-pill-objection {
-  background: #fce8d9;
-  color: #d95a07;
-  border-color: rgba(217, 90, 7, 0.35);
+  background: var(--hook-bg, #fce8d9);
+  color: var(--hook, #d95a07);
+  border-color: rgba(217, 90, 7, 0.3);
 }
 
 .lead-angle-pill.angle-pill-use_moment {
   background: #f3e8ff;
   color: #6b21a8;
-  border-color: rgba(107, 33, 168, 0.35);
+  border-color: rgba(107, 33, 168, 0.3);
 }
 
 .lead-angle-pill.angle-pill-identity {
   background: #ffe4e6;
   color: #9f1239;
-  border-color: rgba(159, 18, 57, 0.35);
+  border-color: rgba(159, 18, 57, 0.3);
 }
 
 .lead-angle-pill.angle-pill-contrast {
   background: #ffedd5;
   color: #9a3412;
-  border-color: rgba(154, 52, 18, 0.35);
+  border-color: rgba(154, 52, 18, 0.3);
 }
 
 .lead-angle-pill.angle-pill-audience_context {
   background: #e2e8f0;
   color: #334155;
-  border-color: rgba(51, 65, 85, 0.35);
+  border-color: rgba(51, 65, 85, 0.3);
 }
 
 .segment-lead-badge {
@@ -2643,6 +2892,29 @@
 .shelf-card.is-skeleton .shelf-photo { background: linear-gradient(90deg, var(--tint) 30%, #fff 50%, var(--tint) 70%) 0 0 / 200% 100%; animation: shimmer 1.4s linear infinite; }
 .shelf-card.is-skeleton .shelf-name { color: transparent; background: var(--tint); border-radius: 4px; }
 .shelf-error { margin: 0; padding: 12px 18px 0; color: #9f1239; font-size: 0.8125rem; }
+
+@media (max-width: 480px) {
+  .gate-backdrop {
+    padding: 12px;
+  }
+  .gate-card {
+    padding: 20px 16px 18px;
+    border-radius: 14px;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  .gate-title {
+    font-size: 1.25rem;
+  }
+  .shadcn-otp-slots {
+    gap: 6px;
+  }
+  .shadcn-otp-cell {
+    height: 48px;
+    font-size: 1.25rem;
+    border-radius: 8px;
+  }
+}
 
 @media (max-width: 640px) {
   .shelf-card { flex-basis: 140px; }

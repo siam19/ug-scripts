@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { LineKind } from 'api-types';
-import { IconArrowBackUp, IconCheck, IconX } from '@tabler/icons-react';
+import { IconArrowBackUp, IconCheck, IconMicrophone, IconVideo, IconX } from '@tabler/icons-react';
 import { LineToolbar } from './LineToolbar';
 import type { LinePending } from './LineToolbar';
 import { ScopeBadge } from './VersionRail';
@@ -197,11 +197,15 @@ export function ScriptLine(p: Props) {
               {line.pending ? 'Rewriting…' : KIND_LABEL[line.kind] ?? line.kind}
             </span>
             {line.speaker && (
-              <span className="ln-speaker-badge">{line.speaker}</span>
+              <span className="ln-speaker-badge">
+                <IconMicrophone size={12} className="ln-speaker-icon" aria-hidden="true" />
+                <span>{line.speaker}</span>
+              </span>
             )}
           </div>
           {line.visual && (
             <div className="ln-visual-cue">
+              <IconVideo size={13} className="ln-visual-cue-icon" aria-hidden="true" />
               <span>{line.visual}</span>
             </div>
           )}

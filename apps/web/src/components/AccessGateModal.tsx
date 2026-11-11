@@ -203,10 +203,9 @@ export function AccessGateModal({ open, initialMode = 'enter_code', onUnlocked, 
     }
   }
 
-  async function handleVerify(e: FormEvent) {
-    e.preventDefault();
-    const clean = code.trim();
-    if (!clean) return;
+  async function submitCode(rawCode: string) {
+    const clean = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+    if (!clean || clean.length < 5 || verifying) return;
 
     setVerifying(true);
     setErrorMsg(null);
@@ -232,6 +231,19 @@ export function AccessGateModal({ open, initialMode = 'enter_code', onUnlocked, 
     } finally {
       setVerifying(false);
     }
+  }
+
+  function handleCodeChange(val: string) {
+    setCode(val);
+    setErrorMsg(null);
+    if (val.length === 5) {
+      void submitCode(val);
+    }
+  }
+
+  async function handleVerify(e: FormEvent) {
+    e.preventDefault();
+    await submitCode(code);
   }
 
   async function handleRequestAccess(e: FormEvent) {
@@ -357,7 +369,7 @@ export function AccessGateModal({ open, initialMode = 'enter_code', onUnlocked, 
                         id={id('code')}
                         inputRef={codeRef}
                         value={code}
-                        onChange={setCode}
+                        onChange={handleCodeChange}
                         error={Boolean(errorMsg)}
                       />
                     </div>
