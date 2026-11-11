@@ -10,12 +10,16 @@ export interface LineVersion {
   label: LineVersionLabel;
   detail?: string; // e.g. the tone used for a rephrase ("punchier", "casual")
   text: string | null; // null = deleted (tombstone)
+  speaker?: string | null;
+  visual?: string | null;
 }
 
 export interface LineNode {
   type: 'line';
   uid: Uid;
   kind: LineKind;
+  speaker?: string | null;
+  visual?: string | null;
   versions: LineVersion[];
   cursor: number;
   pending?: 'rephrase' | 'regenerate';
@@ -95,6 +99,7 @@ export interface WorkspaceMeta {
   name: string;
   market: string;
   language: 'en' | 'bn';
+  script_format?: 'ugc' | 'commercial_30s';
 }
 
 export interface Workspace {

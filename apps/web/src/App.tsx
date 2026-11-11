@@ -131,7 +131,12 @@ export default function App() {
             key={runId}
             data={data}
             isStreaming={status === 'streaming'}
-            meta={{ name: values.name, market: values.market, language: values.language }}
+            meta={{
+              name: values.name,
+              market: values.market,
+              language: values.language,
+              script_format: values.script_format,
+            }}
           />
         )}
       </section>

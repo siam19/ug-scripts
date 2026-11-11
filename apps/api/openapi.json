@@ -875,6 +875,16 @@
             "title": "Language",
             "description": "Desired script language: 'en' for English or 'bn' for Bangla"
           },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format: 'ugc' or 'commercial_30s'",
+            "default": "ugc"
+          },
           "image": {
             "anyOf": [
               {
@@ -941,6 +951,16 @@
             ],
             "title": "Language",
             "description": "Desired script language: 'en' for English or 'bn' for Bangla"
+          },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format: 'ugc' or 'commercial_30s'",
+            "default": "ugc"
           },
           "image": {
             "anyOf": [
@@ -1125,6 +1145,16 @@
             "type": "array",
             "title": "Scripts",
             "description": "The 3 customized scripts, each targeting one of the customer segments"
+          },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format style ('ugc' or 'commercial_30s')",
+            "default": "ugc"
           }
         },
         "type": "object",
@@ -1170,6 +1200,30 @@
             "type": "string",
             "title": "Text",
             "description": "Spoken dialogue or voiceover text meant to be delivered naturally on camera"
+          },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Speaker",
+            "description": "Speaker or delivery role (e.g., 'Voiceover', 'On-camera talent', 'Narrator')"
+          },
+          "visual": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visual",
+            "description": "Terse visual or shot direction cue (<= 12 words)"
           }
         },
         "type": "object",
@@ -1179,7 +1233,7 @@
           "text"
         ],
         "title": "Line",
-        "description": "A single spoken line or beat within a UGC video script."
+        "description": "A single spoken line or beat within a UGC or 30s commercial video script."
       },
       "LineRegenerateRequest": {
         "properties": {
@@ -1681,6 +1735,16 @@
             ],
             "title": "Hook Style",
             "description": "Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')"
+          },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format style ('ugc' or 'commercial_30s')",
+            "default": "ugc"
           }
         },
         "type": "object",
@@ -1737,6 +1801,16 @@
             "type": "array",
             "title": "Angles",
             "description": "Current active creative angles"
+          },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format style ('ugc' or 'commercial_30s')",
+            "default": "ugc"
           },
           "slots": {
             "items": {
@@ -1856,6 +1930,16 @@
             "type": "array",
             "title": "Existing Segment Names",
             "description": "Names of other active segments to guarantee the new one is unique"
+          },
+          "script_format": {
+            "type": "string",
+            "enum": [
+              "ugc",
+              "commercial_30s"
+            ],
+            "title": "Script Format",
+            "description": "Script format style ('ugc' or 'commercial_30s')",
+            "default": "ugc"
           }
         },
         "type": "object",

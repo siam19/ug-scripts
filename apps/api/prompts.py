@@ -13,47 +13,123 @@ These prompts power the two-stage generation process and Sprint 2 granular regen
 Every regeneration prompt embeds a LANGUAGE INSTRUCTION block to enforce strict
 adherence to the user's selected language (English or Bangla).
 """
+from dataclasses import dataclass
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Pipeline and Prompt Versioning (Sprint 4)
+# Pipeline and Prompt Versioning (Sprint 4: Format Setting & Planning)
 # ---------------------------------------------------------------------------
 PIPELINE_VERSION = "s4.0"
 PROMPT_VERSIONS: dict[str, str] = {
-    "segment": "v2.0",
-    "script": "v2.0",
+    "segment": "v4.0",
+    "script": "v4.0",
     "regenerate_segment": "v2.0",
-    "rewrite_script": "v2.0",
+    "rewrite_script": "v4.0",
     "rewrite_reason_lines": "v1.0",
     "rephrase_line": "v1.0",
     "regenerate_line": "v1.0",
 }
 
+
+@dataclass(frozen=True)
+class FormatSpec:
+    id: str
+    label: str
+    ad_context: str
+    word_range: tuple[int, int]
+    hook_max_words: int
+    hook_hard_limit: int
+    voice: str
+    structure: str
+    hook_styles: list[str]
+    use_speaker_visual: bool
+
+
+FORMAT_SPECS: dict[str, FormatSpec] = {
+    "ugc": FormatSpec(
+        id="ugc",
+        label="UGC Video",
+        ad_context="short-form UGC creator video ads (TikTok, Instagram Reels, YouTube Shorts)",
+        word_range=(60, 90),
+        hook_max_words=10,
+        hook_hard_limit=12,
+        voice="First-person creator on a smartphone camera. Relatable, casual, candid, authentic, conversational. Never corporate or announcer-stiff.",
+        structure="Fast hook (0-3s, must stop the scroll), authentic body demonstrating the problem/benefit, direct natural CTA.",
+        hook_styles=["Curiosity Question", "Problem Callout", "Demo / Before-After"],
+        use_speaker_visual=False,
+    ),
+    "commercial_30s": FormatSpec(
+        id="commercial_30s",
+        label="30s Commercial",
+        ad_context="high-impact 30-second digital video & TV commercial advertisements",
+        word_range=(65, 80),
+        hook_max_words=12,
+        hook_hard_limit=14,
+        voice="Polished brand voice, cinematic storytelling, voiceover (VO) or on-camera talent. High production value, confident, memorable.",
+        structure="Cinematic cold-open / hook (0-3s), problem-solution narrative or product hero reveal, strong brand tagline & CTA.",
+        hook_styles=["Cold-Open Scene", "Slice-of-Life Problem", "Product-as-Hero Reveal"],
+        use_speaker_visual=True,
+    ),
+}
+
+HOOKS = ["Curiosity Question", "Problem Callout", "Demo / Before-After"]
+LANGUAGES: dict[str, str] = {"en": "English", "bn": "Bangla"}
+
+
 # ---------------------------------------------------------------------------
-# Shared language enforcement block injected into every regeneration prompt.
+# Shared language enforcement block injected into every prompt.
 # Format variables: {language_name}, {language_code}
 # ---------------------------------------------------------------------------
 
-LANGUAGE_BLOCK = """LANGUAGE INSTRUCTION:
-- ONLY the spoken video script dialogue lines (hook, concept, cta) must be written in {language_name} ({language_code}).
-- Customer segments (name, who, pain_point, platforms), product facts, and marketing rationale (reasons: title, why) MUST ALWAYS be written in English.
-- If language is 'Bangla' (bn):
-  * Spoken video script dialogue lines (hook, concept, cta) must be written in proper, natural Bengali script (বাংলা).
-  * Write dialogue in conversational, authentic spoken Bangla used by UGC creators in Bangladesh.
-  * DO NOT transliterate English into Bengali script (no "Banglish").
-  * DO NOT output English sentences for spoken dialogue lines.
-  * Customer segments, marketing reasons, and platform names MUST remain strictly in English.
-- If language is 'English' (en):
-  * Use crisp, natural, conversational spoken English for script dialogue lines.
-"""
+def build_language_block(language_code: str, script_format: str = "ugc") -> str:
+    """
+    Returns the language instruction block adapted for language and script format.
+    Allows Bengali phonetic transliteration of technical/brand loanwords to prevent loop collapse.
+    """
+    lang_name = LANGUAGES.get(language_code, "English")
+    if language_code == "bn":
+        if script_format == "ugc":
+            return (
+                f"LANGUAGE INSTRUCTION:\n"
+                f"- ONLY the spoken video script dialogue lines (hook, concept, cta) must be written in {lang_name} ({language_code}).\n"
+                f"- Spoken dialogue must be in natural, conversational Bengali script (বাংলা) used by authentic UGC creators in Bangladesh.\n"
+                f"- You MAY write English technical, brand, and ingredient loanwords phonetically in Bengali script "
+                f"(e.g., 'হাইড্রোক্সিপ্যাটাইট', 'এনামেল', 'ব্রাশ', 'অর্গানিক', 'ক্রিম'). This prevents awkward translations.\n"
+                f"- DO NOT output Latin-script English sentences for dialogue.\n"
+                f"- Customer segments, marketing reasons (title, why), and plan fields MUST ALWAYS remain strictly in English."
+            )
+        else:  # commercial_30s
+            return (
+                f"LANGUAGE INSTRUCTION:\n"
+                f"- ONLY the spoken video script dialogue lines (hook, concept, cta) must be written in {lang_name} ({language_code}).\n"
+                f"- Use polished, high-standard contemporary Bengali script (বাংলা) suitable for broadcast and digital video commercials.\n"
+                f"- English brand and technical loanwords are permitted in Bengali script where standard in commercial advertising.\n"
+                f"- Customer segments, marketing reasons, speaker tags, visual cues, and plan fields MUST ALWAYS remain in English."
+            )
+    else:  # English
+        if script_format == "ugc":
+            return (
+                "LANGUAGE INSTRUCTION:\n"
+                "- Write dialogue in crisp, conversational, authentic spoken English for creator video.\n"
+                "- Customer segments, reasons, and plan fields must be in English."
+            )
+        else:
+            return (
+                "LANGUAGE INSTRUCTION:\n"
+                "- Write dialogue in polished, persuasive, high-impact commercial English suitable for TV/digital advertising.\n"
+                "- Customer segments, reasons, and plan fields must be in English."
+            )
+
+
+LANGUAGE_BLOCK = build_language_block("en", "ugc")
+
 
 # ---------------------------------------------------------------------------
 # Stage 1: Multi-modal extraction (Sprint 4: Two-Tier Grounding)
-# Format variables: {name}, {category}, {description}, {market}
+# Format variables: {name}, {category}, {description}, {market}, {ad_context}
 # ---------------------------------------------------------------------------
 
-SEGMENT_PROMPT = """You are a performance-marketing strategist for short-form UGC video ads
-(TikTok, Reels, Shorts) in {market}.
+SEGMENT_PROMPT = """You are a performance-marketing strategist for {ad_context} in {market}.
 
 PRODUCT
 Name: {name}
@@ -101,37 +177,51 @@ TASK
 """
 
 # ---------------------------------------------------------------------------
-# Stage 2: Full script generation (Sprint 4: Two-Tier Grounding)
+# Stage 2: Full script generation (Sprint 4: Planning & Format Specs)
 # Format variables: {name}, {category}, {facts}, {segment_name}, {who},
-#                   {pain_point}, {hook}, {market}, {language}
+#                   {pain_point}, {hook}, {market}, {language}, {ad_context},
+#                   {voice}, {min_words}, {max_words}, {hook_max_words},
+#                   {speaker_visual_instructions}, {language_block}
 # ---------------------------------------------------------------------------
 
-SCRIPT_PROMPT = """You write scripts that a creator films on a phone for a short-form ad in
-{market}. Write in {language}, spoken and natural, never ad-copy stiff.
+SCRIPT_PROMPT = """You write scripts for {ad_context} in {market}.
+Write spoken dialogue in {language}.
+Voice & tone: {voice}
+
+{language_block}
 
 PRODUCT: {name} ({category})
 
 GROUNDING FACTS & CREATIVE ANGLES:
 {facts}
 
-TARGET: {segment_name}: {who}. Pain point: {pain_point}
-HOOK STYLE: {hook}
+TARGET AUDIENCE:
+Segment: {segment_name}
+Who: {who}
+Pain point: {pain_point}
+Hook style: {hook}
 
-RULES
-- 20-35 seconds spoken (about 60-90 words).
-- Structure: hook (first 3 seconds, must stop the scroll), concept, cta.
-  Tag each line with its kind and number lines from 1.
-- TWO-TIER GROUNDING RULE:
-  * Every claim about the product must trace to a listed fact.
-  * Situations, scenes, feelings, objections and demonstrations come from the listed angles and your own creativity.
-  * Do not state an angle as an unverified product guarantee.
-  * Trivia facts may appear only as passing visual detail, never as the central claim of a line.
-  * No medical claims, no '#1', no made-up numbers or testimonials.
-- Speak to this segment's pain point, not to everyone.
-- reasons: exactly 3. Each names a specific technique in English (pattern
-  interrupt, specificity, objection handling, demo/proof, etc.),
-  explains in English why it works for THIS segment, and lists the line_ids that
-  use it. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that does not do what you claim.
+TASK
+1. plan: First, commit to the strategic creative plan for this script before writing dialogue:
+   - core_promise: The single primary outcome promised to this audience segment.
+   - lead_angle_ids: Which creative angle IDs are actively executed in this script.
+   - proof_moment: The specific visible demonstration or evidence beat shown on camera to prove the claim.
+   - objection: The main customer friction addressed.
+   - techniques: Exactly 3 performance marketing techniques used (in English).
+
+2. lines: Write the ready-to-film spoken dialogue lines conforming strictly to your committed plan:
+   - Length: {min_words}-{max_words} words spoken total.
+   - Structure: hook (first line, 0-3s, must stop the scroll), concept (body lines), cta (last line).
+   - Hook length: <= {hook_max_words} words.
+   - Line numbering: strictly sequential from 1.
+   {speaker_visual_instructions}
+
+3. reasons: Exactly 3 performance marketing rationales in English explaining why the chosen techniques work for this segment and list the contiguous line_ids that demonstrate each technique.
+
+RULES:
+- TWO-TIER GROUNDING: Every claim about the product must trace to a listed fact. Situations, feelings, objections and demonstrations come from the listed angles and your creativity.
+- Do not state an angle as an unverified product guarantee. Trivia facts may appear only as passing visual detail.
+- No medical claims, no '#1', no made-up numbers or testimonials.
 """
 
 # ---------------------------------------------------------------------------
@@ -183,8 +273,9 @@ REQUIREMENTS
 #                   {pain_point}, {hook}, {language_block}
 # ---------------------------------------------------------------------------
 
-REWRITE_SCRIPT_PROMPT = """You write scripts that a creator films on a phone for a short-form ad
-in {market}.
+REWRITE_SCRIPT_PROMPT = """You write scripts for {ad_context} in {market}.
+Write spoken dialogue in {language}.
+Voice & tone: {voice}
 
 {language_block}
 
@@ -195,25 +286,26 @@ TARGET: {segment_name}: {who}. Pain point: {pain_point}
 HOOK STYLE: {hook}
 
 TASK
-Write a complete, ready-to-film UGC script for this target segment.
-This is a FRESH rewrite — do not copy or paraphrase any previous version.
+1. plan: First, commit to the strategic creative plan for this script before writing dialogue:
+   - core_promise: The single primary outcome promised to this audience segment.
+   - lead_angle_ids: Which creative angle IDs are actively executed in this script.
+   - proof_moment: The specific visible demonstration or evidence beat shown on camera to prove the claim.
+   - objection: The main customer friction addressed.
+   - techniques: Exactly 3 performance marketing techniques used (in English).
 
-RULES
-- 20-35 seconds spoken (about 60-90 words).
-- Structure: hook (first 3 seconds, must stop the scroll), concept, cta.
-  Tag each line with its kind and number lines from 1.
-- TWO-TIER GROUNDING RULE:
-  * Every claim about the product must trace to a listed fact.
-  * Situations, scenes, feelings, objections and demonstrations come from the listed angles and your own creativity.
-  * Do not state an angle as an unverified product guarantee.
-  * Trivia facts may appear only as passing visual detail, never as the central claim of a line.
-  * No medical claims, no '#1', no made-up numbers or testimonials.
-- Speak directly to this segment's pain point, not to a generic audience.
-- reasons: exactly 3. Each names a specific technique in English (pattern
-  interrupt, specificity, objection handling, demo/proof, etc.),
-  explains in English why it works for THIS segment, and lists the line_ids that
-  use it. Cited line_ids must be contiguous. The title and why fields of each reason MUST ALWAYS be in English. Never cite a line that
-  does not demonstrate the claimed technique.
+2. lines: Write a FRESH, complete ready-to-film script conforming strictly to your committed plan:
+   - Length: {min_words}-{max_words} words spoken total.
+   - Structure: hook (first line, 0-3s, must stop the scroll), concept (body lines), cta (last line).
+   - Hook length: <= {hook_max_words} words.
+   - Line numbering: strictly sequential from 1.
+   {speaker_visual_instructions}
+
+3. reasons: Exactly 3 performance marketing rationales in English explaining why the chosen techniques work for this segment and list the contiguous line_ids that demonstrate each technique.
+
+RULES:
+- TWO-TIER GROUNDING: Every claim about the product must trace to a listed fact. Situations, feelings, objections and demonstrations come from the listed angles and your creativity.
+- Do not state an angle as an unverified product guarantee. Trivia facts may appear only as passing visual detail.
+- No medical claims, no '#1', no made-up numbers or testimonials.
 """
 
 # ---------------------------------------------------------------------------
@@ -397,5 +489,56 @@ def format_avoid_tones(avoid_tones: list[str]) -> str:
         return ""
     tones_str = ", ".join(avoid_tones)
     return f"DO NOT use any of these tones (already tried): {tones_str}. Select a DIFFERENT tone from the available options."
+
+
+def build_script_prompt(
+    prompt_template: str,
+    name: str,
+    category: str,
+    market: str,
+    language: str,
+    segment: Any,
+    facts_block: str,
+    hook_style: str,
+    script_format: str = "ugc",
+) -> str:
+    """Builds the fully interpolated prompt for ScriptDraft generation based on FormatSpec."""
+    spec = FORMAT_SPECS.get(script_format, FORMAT_SPECS["ugc"])
+    lang_name = LANGUAGES.get(language, language)
+    lang_block = build_language_block(language, script_format)
+
+    if spec.use_speaker_visual:
+        speaker_visual_instructions = (
+            "- speaker: For each line, specify the speaker role (e.g. 'Voiceover (VO)', 'On-camera talent', 'Customer').\n"
+            "- visual: For each line, provide a concise visual direction cue (<= 12 words, in English) describing what is shown on screen."
+        )
+    else:
+        speaker_visual_instructions = (
+            "- speaker and visual: Leave null / omit for UGC scripts."
+        )
+
+    segment_name = getattr(segment, "name", "") if hasattr(segment, "name") else segment.get("name", "")
+    who = getattr(segment, "who", "") if hasattr(segment, "who") else segment.get("who", "")
+    pain_point = getattr(segment, "pain_point", "") if hasattr(segment, "pain_point") else segment.get("pain_point", "")
+
+    return prompt_template.format(
+        name=name,
+        category=category,
+        market=market,
+        language=lang_name,
+        facts=facts_block,
+        segment_name=segment_name,
+        who=who,
+        pain_point=pain_point,
+        hook=hook_style,
+        ad_context=spec.ad_context,
+        voice=spec.voice,
+        min_words=spec.word_range[0],
+        max_words=spec.word_range[1],
+        hook_max_words=spec.hook_max_words,
+        speaker_visual_instructions=speaker_visual_instructions,
+        language_block=lang_block,
+    )
+
 
 

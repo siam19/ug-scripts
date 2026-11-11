@@ -20,6 +20,7 @@ interface SegmentsEvent {
   product_appearance?: string;
   angles?: Angle[];
   segments: Segment[];
+  script_format?: 'ugc' | 'commercial_30s';
 }
 
 interface ScriptEvent {
@@ -134,6 +135,7 @@ export function useGenerateScript() {
     body.append('category', values.category.trim());
     body.append('market', values.market.trim());
     body.append('language', values.language);
+    body.append('script_format', values.script_format || 'ugc');
     if (values.image) {
       body.append('image', values.image);
     } else if (values.demoProductId) {

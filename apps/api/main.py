@@ -77,6 +77,7 @@ from schemas import (
     ReasonLinesRewriteRequest,
     ReasonLinesRewriteResponse,
     Script,
+    ScriptDraft,
     ScriptRewriteRequest,
     SectionRegenerateRequest,
     Segment,
@@ -88,6 +89,8 @@ from schemas import (
 )
 from usage import record_gemini_usage, start_token_tracking
 from prompts import (
+    FORMAT_SPECS,
+    FormatSpec,
     REGENERATE_LINE_PROMPT,
     REGENERATE_SEGMENT_PROMPT,
     REPHRASE_LINE_PROMPT,
@@ -95,6 +98,8 @@ from prompts import (
     REWRITE_SCRIPT_PROMPT,
     SCRIPT_PROMPT,
     SEGMENT_PROMPT,
+    build_language_block,
+    build_script_prompt,
     format_avoid_tones,
     format_facts_text,
     format_script_context,
@@ -224,13 +229,16 @@ async def run_stage1(
     description: str,
     market: str,
     parts: Sequence[Any] = (),
+    script_format: str = "ugc",
 ) -> Segments:
     """Executes Stage 1: multi-modal extraction of facts, appearance, angles, and segments with grounding."""
+    spec = FORMAT_SPECS.get(script_format, FORMAT_SPECS["ugc"])
     segment_prompt = SEGMENT_PROMPT.format(
         name=name,
         category=category,
         description=description,
         market=market,
+        ad_context=spec.ad_context,
     )
     raw_segments: Segments = await ask_gemini(
         prompt=segment_prompt,
@@ -253,8 +261,9 @@ async def run_stage2_single_script(
     facts_text: str | None = None,
     facts: Sequence[Fact | str] | None = None,
     angles: Sequence[Angle] | None = None,
+    script_format: str = "ugc",
 ) -> Script:
-    """Generates a single UGC script with deterministic in-code validation and single retry."""
+    """Generates a single script with planning (ScriptDraft) and deterministic in-code validation."""
     if facts is not None:
         selected_facts, lead_angles = build_segment_script_context(segment, facts, angles or ())
         grounding_text = format_grounding_prompt_block(selected_facts, lead_angles)
@@ -263,27 +272,29 @@ async def run_stage2_single_script(
     else:
         grounding_text = ""
 
-    hook_style = HOOKS[index % len(HOOKS)]
-    lang_name = LANGUAGES.get(language, language)
-    prompt = SCRIPT_PROMPT.format(
+    spec = FORMAT_SPECS.get(script_format, FORMAT_SPECS["ugc"])
+    hook_style = spec.hook_styles[index % len(spec.hook_styles)]
+    prompt = build_script_prompt(
+        prompt_template=SCRIPT_PROMPT,
         name=name,
         category=category,
-        facts=grounding_text,
-        segment_name=segment.name,
-        who=segment.who,
-        pain_point=segment.pain_point,
-        hook=hook_style,
         market=market,
-        language=lang_name,
+        language=language,
+        segment=segment,
+        facts_block=grounding_text,
+        hook_style=hook_style,
+        script_format=script_format,
     )
-    script_obj, _issues = await ask_validated(
+    draft_obj, _issues = await ask_validated(
         ask_gemini,
         prompt=prompt,
-        schema=Script,
+        schema=ScriptDraft,
         stage="script",
-        validate=lambda s: validate_script(s, language=language),
+        validate=lambda s: validate_script(s, language=language, format_spec=script_format),
     )
-    return script_obj
+    if hasattr(draft_obj, "to_script"):
+        return draft_obj.to_script(segment.name)
+    return draft_obj
 
 
 async def run_stage2(
@@ -294,6 +305,7 @@ async def run_stage2(
     facts: Sequence[Fact | str],
     segments: list[Segment],
     angles: Sequence[Angle] | None = None,
+    script_format: str = "ugc",
 ) -> list[Script]:
     """Executes Stage 2: parallel generation of 3 scripts (one per segment)."""
     return await asyncio.gather(*[
@@ -306,6 +318,7 @@ async def run_stage2(
             language=language,
             facts=facts,
             angles=angles or (),
+            script_format=script_format,
         )
         for i, s in enumerate(segments)
     ])
@@ -531,6 +544,7 @@ async def generate(
     category: str = Form(..., description="Product category"),
     market: str = Form(..., description="Target market country or region (e.g., 'Bangladesh')"),
     language: Literal["en", "bn"] = Form(..., description="Desired script language: 'en' for English or 'bn' for Bangla"),
+    script_format: Literal["ugc", "commercial_30s"] = Form("ugc", description="Script format: 'ugc' or 'commercial_30s'"),
     image: UploadFile | None = File(None, description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
     demo_product_id: str | None = Form(None, description="Preset demo product ID (if not uploading an image)"),
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
@@ -560,6 +574,7 @@ async def generate(
         description=description,
         market=market_clean,
         parts=[img_part],
+        script_format=script_format,
     )
 
     # 4. Stage 2: Parallel Script Generation (One per Segment)
@@ -571,6 +586,7 @@ async def generate(
         facts=segs.product_facts,
         segments=segs.segments,
         angles=segs.angles,
+        script_format=script_format,
     )
 
     usage = acc.to_dict()
@@ -586,18 +602,20 @@ async def generate(
             "category": category,
             "market": market_clean,
             "language": language,
+            "script_format": script_format,
             "is_demo_product": bool(demo_product_id),
         },
         image_bytes=image_bytes if not demo_img_url else None,
         image_content_type=content_type,
         demo_image_url=demo_img_url,
-        request_payload={"name": name, "category": category, "market": market_clean, "language": language},
+        request_payload={"name": name, "category": category, "market": market_clean, "language": language, "script_format": script_format},
         response_payload={
             "facts": [f.model_dump() for f in segs.product_facts],
             "product_appearance": segs.product_appearance,
             "angles": [a.model_dump() for a in segs.angles],
             "segments": [s.model_dump() for s in segs.segments],
             "scripts": [s.model_dump() for s in scripts],
+            "script_format": script_format,
         },
         usage=usage,
     )
@@ -609,6 +627,7 @@ async def generate(
         angles=segs.angles,
         segments=segs.segments,
         scripts=scripts,
+        script_format=script_format,
     )
 
 
@@ -624,6 +643,7 @@ async def generate_stream(
     category: str = Form(..., description="Product category"),
     market: str = Form(..., description="Target market country or region (e.g., 'Bangladesh')"),
     language: Literal["en", "bn"] = Form(..., description="Desired script language: 'en' for English or 'bn' for Bangla"),
+    script_format: Literal["ugc", "commercial_30s"] = Form("ugc", description="Script format: 'ugc' or 'commercial_30s'"),
     image: UploadFile | None = File(None, description="Product image file (JPEG, PNG, or WebP, max 5 MB)"),
     demo_product_id: str | None = Form(None, description="Preset demo product ID (if not uploading an image)"),
     x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
@@ -657,6 +677,7 @@ async def generate_stream(
                 description=description,
                 market=market_clean,
                 parts=[img_part],
+                script_format=script_format,
             )
             collected_segments = [s.model_dump() for s in segs.segments]
 
@@ -667,6 +688,7 @@ async def generate_stream(
                 "product_appearance": segs.product_appearance,
                 "angles": [a.model_dump() for a in segs.angles],
                 "segments": collected_segments,
+                "script_format": script_format,
             }
             yield f"data: {json.dumps(stage1_data)}\n\n"
 
@@ -681,6 +703,7 @@ async def generate_stream(
                     language=language,
                     facts=segs.product_facts,
                     angles=segs.angles,
+                    script_format=script_format,
                 )
                 return index, script_obj
 
@@ -828,31 +851,32 @@ async def rewrite_script(
     while strictly retaining the requested language and enforcing contiguous reasons.
     """
     acc = start_token_tracking()
-    lang_block = get_language_block(payload.language)
     selected_facts, lead_angles = build_segment_script_context(
         payload.segment, payload.facts, payload.angles
     )
     facts_and_angles_text = format_grounding_prompt_block(selected_facts, lead_angles)
-    hook_style = payload.hook_style or HOOKS[0]
+    spec = FORMAT_SPECS.get(payload.script_format, FORMAT_SPECS["ugc"])
+    hook_style = payload.hook_style or spec.hook_styles[0]
 
-    prompt = REWRITE_SCRIPT_PROMPT.format(
+    prompt = build_script_prompt(
+        prompt_template=REWRITE_SCRIPT_PROMPT,
         name=payload.name,
         category=payload.category,
         market=payload.market,
-        language_block=lang_block,
-        facts=facts_and_angles_text,
-        segment_name=payload.segment.name,
-        who=payload.segment.who,
-        pain_point=payload.segment.pain_point,
-        hook=hook_style,
+        language=payload.language,
+        segment=payload.segment,
+        facts_block=facts_and_angles_text,
+        hook_style=hook_style,
+        script_format=payload.script_format,
     )
-    result, _issues = await ask_validated(
+    result_obj, _issues = await ask_validated(
         ask_gemini,
         prompt=prompt,
-        schema=Script,
+        schema=ScriptDraft,
         stage="rewrite_script",
-        validate=lambda s: validate_script(s, language=payload.language),
+        validate=lambda s: validate_script(s, language=payload.language, format_spec=payload.script_format),
     )
+    result = result_obj.to_script(payload.segment.name) if hasattr(result_obj, "to_script") else result_obj
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
 
@@ -860,7 +884,7 @@ async def rewrite_script(
         log_generation_task,
         access_code=auth.get("access_code", "ANONYMOUS"),
         endpoint="/regenerate/script",
-        product_meta={"name": payload.name, "category": payload.category, "market": payload.market, "language": payload.language},
+        product_meta={"name": payload.name, "category": payload.category, "market": payload.market, "language": payload.language, "script_format": payload.script_format},
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
@@ -1125,30 +1149,32 @@ async def regenerate_section(
 
             # 2. Parallel Script Generation across all 3 segments
             async def generate_single_script(index: int, segment: Segment) -> tuple[int, Script]:
-                hook_style = HOOKS[index % len(HOOKS)]
+                spec = FORMAT_SPECS.get(payload.script_format, FORMAT_SPECS["ugc"])
+                hook_style = spec.hook_styles[index % len(spec.hook_styles)]
                 selected_facts, lead_angles = build_segment_script_context(
                     segment, payload.facts, payload.angles
                 )
                 facts_and_angles_text = format_grounding_prompt_block(selected_facts, lead_angles)
-                prompt = REWRITE_SCRIPT_PROMPT.format(
+                prompt = build_script_prompt(
+                    prompt_template=REWRITE_SCRIPT_PROMPT,
                     name=payload.name,
                     category=payload.category,
                     market=payload.market,
-                    language_block=lang_block,
-                    facts=facts_and_angles_text,
-                    segment_name=segment.name,
-                    who=segment.who,
-                    pain_point=segment.pain_point,
-                    hook=hook_style,
+                    language=payload.language,
+                    segment=segment,
+                    facts_block=facts_and_angles_text,
+                    hook_style=hook_style,
+                    script_format=payload.script_format,
                 )
                 script_obj, _issues = await ask_validated(
                     ask_gemini,
                     prompt=prompt,
-                    schema=Script,
+                    schema=ScriptDraft,
                     stage="rewrite_script",
-                    validate=lambda s: validate_script(s, language=payload.language),
+                    validate=lambda s: validate_script(s, language=payload.language, format_spec=payload.script_format),
                 )
-                return index, script_obj
+                final_script = script_obj.to_script(segment.name) if hasattr(script_obj, "to_script") else script_obj
+                return index, final_script
 
             tasks = [
                 asyncio.create_task(generate_single_script(i, s))

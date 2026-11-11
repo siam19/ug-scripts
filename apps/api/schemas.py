@@ -136,7 +136,7 @@ class Segments(BaseModel):
 
 class Line(BaseModel):
     """
-    A single spoken line or beat within a UGC video script.
+    A single spoken line or beat within a UGC or 30s commercial video script.
     """
     id: int = Field(
         ...,
@@ -149,6 +149,14 @@ class Line(BaseModel):
     text: str = Field(
         ...,
         description="Spoken dialogue or voiceover text meant to be delivered naturally on camera"
+    )
+    speaker: str | None = Field(
+        default=None,
+        description="Speaker or delivery role (e.g., 'Voiceover', 'On-camera talent', 'Narrator')"
+    )
+    visual: str | None = Field(
+        default=None,
+        description="Terse visual or shot direction cue (<= 12 words)"
     )
 
 
@@ -188,6 +196,60 @@ class Script(BaseModel):
     )
 
 
+class ScriptPlan(BaseModel):
+    """
+    Pre-dialogue strategic creative plan committed before writing dialogue (Phase 5).
+    Locks in creative direction, proof moments, and lead angle focus at zero latency.
+    """
+    core_promise: str = Field(
+        ...,
+        description="The primary compelling outcome promised to this audience segment"
+    )
+    lead_angle_ids: list[int] = Field(
+        default_factory=list,
+        description="1-based IDs of creative angles actively executed in this script"
+    )
+    proof_moment: str = Field(
+        ...,
+        description="The specific visual demonstration or evidence beat shown on camera"
+    )
+    objection: str | None = Field(
+        default=None,
+        description="The core hesitation or friction addressed in this script"
+    )
+    techniques: list[str] = Field(
+        default_factory=list,
+        description="The 3 specific performance marketing techniques utilized (in English)"
+    )
+
+
+class ScriptDraft(BaseModel):
+    """
+    LLM-facing generation schema with plan placed first (Phase 5).
+    Gemini outputs plan tokens first, locking in direction before writing lines.
+    """
+    plan: ScriptPlan = Field(
+        ...,
+        description="Strategic creative plan committed before writing dialogue"
+    )
+    lines: list[Line] = Field(
+        ...,
+        description="Ordered sequence of script lines structured as hook, concept, and cta"
+    )
+    reasons: list[Reason] = Field(
+        ...,
+        description="Exactly 3 reasons explaining why the script is constructed this way"
+    )
+
+    def to_script(self, segment_name: str) -> Script:
+        """Converts internal draft to client-facing Script schema."""
+        return Script(
+            segment=segment_name,
+            lines=self.lines,
+            reasons=self.reasons,
+        )
+
+
 class GenerateResponse(BaseModel):
     """
     The top-level response payload returned by POST /generate.
@@ -211,6 +273,10 @@ class GenerateResponse(BaseModel):
     scripts: list[Script] = Field(
         ...,
         description="The 3 customized scripts, each targeting one of the customer segments"
+    )
+    script_format: Literal['ugc', 'commercial_30s'] = Field(
+        default='ugc',
+        description="Script format style ('ugc' or 'commercial_30s')"
     )
 
     @field_validator("facts", mode="before")
@@ -265,6 +331,10 @@ class SegmentRegenerateRequest(BaseModel):
         default_factory=list,
         description="Names of other active segments to guarantee the new one is unique"
     )
+    script_format: Literal['ugc', 'commercial_30s'] = Field(
+        default='ugc',
+        description="Script format style ('ugc' or 'commercial_30s')"
+    )
 
     @field_validator("facts", mode="before")
     @classmethod
@@ -287,6 +357,10 @@ class ScriptRewriteRequest(BaseModel):
     hook_style: str | None = Field(
         None,
         description="Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')"
+    )
+    script_format: Literal['ugc', 'commercial_30s'] = Field(
+        default='ugc',
+        description="Script format style ('ugc' or 'commercial_30s')"
     )
 
     @field_validator("facts", mode="before")
@@ -414,6 +488,10 @@ class SectionRegenerateRequest(BaseModel):
     language: Literal['en', 'bn'] = Field(..., description="Target language")
     facts: list[Fact] = Field(..., min_length=1, description="Current active product facts")
     angles: list[Angle] = Field(default_factory=list, description="Current active creative angles")
+    script_format: Literal['ugc', 'commercial_30s'] = Field(
+        default='ugc',
+        description="Script format style ('ugc' or 'commercial_30s')"
+    )
     slots: list[SlotConfig] = Field(
         default_factory=list,
         description="Configuration for each slot indicating whether to preserve or replace"

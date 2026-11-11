@@ -364,6 +364,13 @@ export interface components {
              */
             language: "en" | "bn";
             /**
+             * Script Format
+             * @description Script format: 'ugc' or 'commercial_30s'
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
+            /**
              * Image
              * @description Product image file (JPEG, PNG, or WebP, max 5 MB)
              */
@@ -402,6 +409,13 @@ export interface components {
              * @enum {string}
              */
             language: "en" | "bn";
+            /**
+             * Script Format
+             * @description Script format: 'ugc' or 'commercial_30s'
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
             /**
              * Image
              * @description Product image file (JPEG, PNG, or WebP, max 5 MB)
@@ -525,6 +539,13 @@ export interface components {
              * @description The 3 customized scripts, each targeting one of the customer segments
              */
             scripts: components["schemas"]["Script"][];
+            /**
+             * Script Format
+             * @description Script format style ('ugc' or 'commercial_30s')
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -533,7 +554,7 @@ export interface components {
         };
         /**
          * Line
-         * @description A single spoken line or beat within a UGC video script.
+         * @description A single spoken line or beat within a UGC or 30s commercial video script.
          */
         Line: {
             /**
@@ -552,6 +573,16 @@ export interface components {
              * @description Spoken dialogue or voiceover text meant to be delivered naturally on camera
              */
             text: string;
+            /**
+             * Speaker
+             * @description Speaker or delivery role (e.g., 'Voiceover', 'On-camera talent', 'Narrator')
+             */
+            speaker?: string | null;
+            /**
+             * Visual
+             * @description Terse visual or shot direction cue (<= 12 words)
+             */
+            visual?: string | null;
         };
         /**
          * LineRegenerateRequest
@@ -887,6 +918,13 @@ export interface components {
              * @description Optional hook angle ('curiosity question', 'problem callout', 'demo / before-after')
              */
             hook_style?: string | null;
+            /**
+             * Script Format
+             * @description Script format style ('ugc' or 'commercial_30s')
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
         };
         /**
          * SectionRegenerateRequest
@@ -925,6 +963,13 @@ export interface components {
              * @description Current active creative angles
              */
             angles?: components["schemas"]["Angle"][];
+            /**
+             * Script Format
+             * @description Script format style ('ugc' or 'commercial_30s')
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
             /**
              * Slots
              * @description Configuration for each slot indicating whether to preserve or replace
@@ -1006,6 +1051,13 @@ export interface components {
              * @description Names of other active segments to guarantee the new one is unique
              */
             existing_segment_names?: string[];
+            /**
+             * Script Format
+             * @description Script format style ('ugc' or 'commercial_30s')
+             * @default ugc
+             * @enum {string}
+             */
+            script_format: "ugc" | "commercial_30s";
         };
         /**
          * SlotConfig

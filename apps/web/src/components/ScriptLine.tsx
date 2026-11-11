@@ -20,6 +20,8 @@ export interface LineView {
   uid: string;
   kind: LineKind;
   text: string;
+  speaker?: string | null;
+  visual?: string | null;
   no: number; // 1-based display number derived from position
   time: string; // e.g. "0:12"
   version: ScopeVersion;
@@ -190,9 +192,20 @@ export function ScriptLine(p: Props) {
           <span className="ln-time">{line.time}</span>
         </div>
         <div className="ln-body">
-          <span className="kind">
-            {line.pending ? 'Rewriting…' : KIND_LABEL[line.kind] ?? line.kind}
-          </span>
+          <div className="ln-meta-row">
+            <span className="kind">
+              {line.pending ? 'Rewriting…' : KIND_LABEL[line.kind] ?? line.kind}
+            </span>
+            {line.speaker && (
+              <span className="ln-speaker-badge">{line.speaker}</span>
+            )}
+          </div>
+          {line.visual && (
+            <div className="ln-visual-cue">
+              <span className="ln-visual-icon" aria-hidden="true">🎬</span>
+              <span>{line.visual}</span>
+            </div>
+          )}
           {editing ? (
             <textarea
               ref={area}

@@ -29,16 +29,18 @@ import { Collapse, StaleBar } from './StaleBar';
 import { ToastHost } from './ToastHost';
 import type { ToastItem } from './ToastHost';
 
+import type { ScriptFormat } from 'api-types';
+
 interface Props {
   data: ProgressiveGenerateResponse;
   isStreaming?: boolean;
-  meta?: { name: string; market: string; language: 'en' | 'bn' };
+  meta?: { name: string; market: string; language: 'en' | 'bn'; script_format?: ScriptFormat };
 }
 
 export function ResultsView({
   data,
   isStreaming = false,
-  meta = { name: 'Product', market: 'Global', language: 'en' },
+  meta = { name: 'Product', market: 'Global', language: 'en', script_format: 'ugc' },
 }: Props) {
   const uid = useId();
   const [workspace, dispatch] = useReducer(workspaceReducer, INITIAL_WORKSPACE);
@@ -114,6 +116,7 @@ export function ResultsView({
           name: meta.name || 'Product',
           market: meta.market || 'Global',
           language: meta.language || 'en',
+          script_format: meta.script_format || data.script_format || 'ugc',
         },
       });
     }

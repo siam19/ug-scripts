@@ -99,12 +99,16 @@ export function buildScriptDoc(
       type: 'line',
       uid,
       kind: l.kind,
+      speaker: l.speaker,
+      visual: l.visual,
       cursor: 0,
       versions: [
         {
           id: generateUid(),
           label: 'Original',
           text: l.text,
+          speaker: l.speaker,
+          visual: l.visual,
         },
       ],
     };
@@ -411,6 +415,8 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
           id: generateUid(),
           label: 'Edited',
           text: action.text,
+          speaker: curVer?.speaker ?? line.speaker,
+          visual: curVer?.visual ?? line.visual,
         };
         const nextVersions = [...line.versions, newVersion];
         return {
@@ -430,11 +436,14 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
 
     case 'REPHRASE_LINE_SUCCESS': {
       return mutateLineNode(state, action.lineUid, (line) => {
+        const curVer = line.versions[line.cursor];
         const newVersion: LineVersion = {
           id: generateUid(),
           label: 'Rephrased',
           detail: action.tone,
           text: action.text,
+          speaker: curVer?.speaker ?? line.speaker,
+          visual: curVer?.visual ?? line.visual,
         };
         const nextVersions = [...line.versions, newVersion];
         return {
@@ -455,10 +464,13 @@ export function workspaceReducer(state: Workspace, action: WorkspaceAction): Wor
 
     case 'REGENERATE_LINE_SUCCESS': {
       return mutateLineNode(state, action.lineUid, (line) => {
+        const curVer = line.versions[line.cursor];
         const newVersion: LineVersion = {
           id: generateUid(),
           label: 'Regenerated',
           text: action.text,
+          speaker: curVer?.speaker ?? line.speaker,
+          visual: curVer?.visual ?? line.visual,
         };
         const nextVersions = [...line.versions, newVersion];
         return {

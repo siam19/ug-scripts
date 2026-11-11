@@ -5,7 +5,7 @@ Tests for POST /generate pipeline execution, mock generation, and response struc
 import io
 from unittest.mock import AsyncMock, patch
 
-from schemas import Line, Reason, Script, Segment, Segments
+from schemas import Line, Reason, Script, ScriptDraft, Segment, Segments
 
 
 def mock_segments_data():
@@ -81,7 +81,7 @@ def test_generate_pipeline_success(client, valid_form_data, sample_png_bytes, va
     async def fake_ask(prompt, schema, parts=(), max_retries=1, **kwargs):
         if schema == Segments:
             return mock_segs
-        elif schema == Script:
+        elif schema in (Script, ScriptDraft):
             # Extract segment name or default
             return mock_script_data("Desk Workers")
         raise ValueError(f"Unexpected schema: {schema}")
@@ -142,7 +142,7 @@ def test_generate_stream_pipeline_success(client, valid_form_data, sample_png_by
     async def fake_ask(prompt, schema, parts=(), max_retries=1, **kwargs):
         if schema == Segments:
             return mock_segs
-        elif schema == Script:
+        elif schema in (Script, ScriptDraft):
             return mock_script_data("Desk Workers")
         raise ValueError(f"Unexpected schema: {schema}")
 

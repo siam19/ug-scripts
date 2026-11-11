@@ -230,4 +230,59 @@ Live evaluation across all 12 Bangladesh advertiser products (36 scripts generat
 * Frontend build (`bun --filter web build`): **0 errors**, clean production build.
 * Live Vertex AI pilot run verified 100% hard pass rate with creative divergence across segments.
 
+---
+
+## Log Entry: Phase 4 & Phase 5 Format Setting, Visual Directing, & Zero-Latency Planning
+
+**Date**: 2026-11-11  
+**Status**: Phases 4 & 5 Complete, Tested & Integrated End-to-End  
+
+### 1. Script Format Setting & Specs Architecture ([`apps/api/prompts.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/prompts.py))
+
+* **Deterministic `FORMAT_SPECS` Configuration:**
+  - `ugc`: Short-form creator video ads (TikTok, Reels, Shorts). Word range 60–90 words, hook $\le 10$ words (hard limit 12). Casual, conversational, first-person creator tone. Hook styles: *Curiosity Question*, *Problem Callout*, *Demo / Before-After*. Speaker and visual cues omitted.
+  - `commercial_30s`: High-impact 30-second digital and TV commercial advertisements. Word range 65–80 words, hook $\le 12$ words (hard limit 14). Polished broadcast brand voice, voiceover (VO) or on-camera talent. Hook styles: *Cold-Open Scene*, *Slice-of-Life Problem*, *Product-as-Hero Reveal*. Generates role speaker tags and concise scene visual directions ($\le 12$ words).
+* **Phonetic Loanword Bengali Transliteration:**
+  - `build_language_block(language_code, script_format)`: Explicitly allows phonetic Bengali-script transliteration for English technical, brand, and ingredient loanwords (e.g., `'হাইড্রোক্সিপ্যাটাইট'`, `'এনামেল'`, `'ব্রাশ'`, `'ক্রিম'`). Completely eradicates the prompt contradiction that previously triggered autoregressive token repetition mode collapse on Bengali consonants (`কককক...`).
+
+### 2. Zero-Latency Pre-Dialogue Planning Architecture ([`apps/api/schemas.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/schemas.py))
+
+* **Structured `ScriptPlan` Model:**
+  - `core_promise`: Primary outcome promised to the segment.
+  - `lead_angle_ids`: 1-based IDs of creative angles actively executed in this script.
+  - `proof_moment`: The specific visual demonstration or evidence beat shown on camera to prove the claim.
+  - `objection`: Core friction addressed.
+  - `techniques`: Exactly 3 performance marketing techniques used.
+* **In-Model CoT `ScriptDraft`:**
+  - Placed `plan: ScriptPlan` as the first field in `ScriptDraft`. Gemini outputs plan tokens *before* dialogue lines, locking in the creative direction with zero added sequential API latency.
+  - Built `.to_script(segment_name)` method converting `ScriptDraft` into the client-facing `Script` model, maintaining full backward compatibility.
+
+### 3. Pipeline Integration & Format Validation ([`apps/api/main.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/main.py), [`apps/api/validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/validation.py))
+
+* **Prompt Assembly (`build_script_prompt`):**
+  - Modular helper in `prompts.py` that interpolates `ad_context`, `voice`, word count constraints, `speaker_visual_instructions`, and language rules.
+* **Pipeline Flow:**
+  - Updated `run_stage1`, `run_stage2_single_script`, and `run_stage2` to propagate `script_format` and run `ScriptDraft` through `ask_validated`.
+  - Updated `/generate`, `/generate-stream`, `/regenerate/script`, and `/regenerate/section` to handle `script_format`.
+* **Validation Engine:**
+  - `validate_script` now dynamically adapts to `format_spec` (`"ugc"` vs `"commercial_30s"`), checking format-specific word ranges, hook lengths, and soft warnings for missing speaker tags in commercial scripts.
+
+### 4. Frontend Format Toggle & Commercial Visual Directing
+
+* **Format Switcher ([`apps/web/src/components/ProductForm.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ProductForm.tsx)):**
+  - Added an accessible segmented radio control allowing creators to switch seamlessly between **UGC Video** and **30s Commercial** formats before generation.
+  - Included explanatory helper hints indicating format style, pacing, and word counts.
+* **Commercial Speaker & Visual Direction Display ([`apps/web/src/components/ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css)):**
+  - Rendered `.ln-speaker-badge` tags (e.g. `VOICEOVER (VO)`, `ON-CAMERA HOST`) next to line kind indicators.
+  - Rendered `.ln-visual-cue` blocks styled with a distinct accent border and clapperboard icon (`🎬`) indicating director shot notes.
+  - Preserved speaker and visual cues across in-place line edits, rephrasings, and regenerations in `workspace.ts`.
+
+### 5. Verification & Testing
+
+* Added [`apps/api/tests/test_format_and_planning.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/tests/test_format_and_planning.py) with 6 comprehensive test cases.
+* Full backend test suite: **62 passed, 0 failed** in 7.42s.
+* Regenerated OpenAPI TypeScript types: `packages/api-types/src/schema.d.ts` and `index.ts`.
+* Frontend build: `bun --filter web build` completed with **0 errors**.
+
+
 

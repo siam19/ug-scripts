@@ -18,12 +18,14 @@ from typing import Any, Callable, Literal, Sequence
 from google.genai import types
 
 from schemas import Line, Reason, ReasonLinesRewriteResponse, Script
+from prompts import FORMAT_SPECS, FormatSpec
 
 # Default specification for UGC video scripts
 UGC_DEFAULTS: dict[str, Any] = {
     "word_range": (60, 90),
     "hook_max_words": 10,
     "hook_hard_limit": 12,
+    "use_speaker_visual": False,
 }
 
 # Punctuation stripping table (preserves whitespace)
@@ -133,22 +135,40 @@ def check_repetition_loops(text: str) -> list[str]:
 
 
 def validate_script(
-    script: Script,
+    script: Any,
     language: str = "en",
-    format_spec: dict[str, Any] | None = None,
+    format_spec: dict[str, Any] | FormatSpec | str | None = None,
 ) -> list[Issue]:
     """
-    Validates a generated Script against deterministic quality and structural constraints.
+    Validates a generated Script or ScriptDraft against deterministic quality and structural constraints.
     Returns a list of structured Issues.
     """
     issues: list[Issue] = []
-    spec = format_spec or UGC_DEFAULTS
-    word_range = spec.get("word_range", (60, 90))
-    hook_max_words = spec.get("hook_max_words", 10)
-    hook_hard_limit = spec.get("hook_hard_limit", 12)
 
-    lines = script.lines or []
-    reasons = script.reasons or []
+    if isinstance(format_spec, str):
+        spec = FORMAT_SPECS.get(format_spec, FORMAT_SPECS["ugc"])
+        word_range = spec.word_range
+        hook_max_words = spec.hook_max_words
+        hook_hard_limit = spec.hook_hard_limit
+        use_speaker_visual = spec.use_speaker_visual
+    elif isinstance(format_spec, FormatSpec):
+        word_range = format_spec.word_range
+        hook_max_words = format_spec.hook_max_words
+        hook_hard_limit = format_spec.hook_hard_limit
+        use_speaker_visual = format_spec.use_speaker_visual
+    elif isinstance(format_spec, dict):
+        word_range = format_spec.get("word_range", (60, 90))
+        hook_max_words = format_spec.get("hook_max_words", 10)
+        hook_hard_limit = format_spec.get("hook_hard_limit", 12)
+        use_speaker_visual = format_spec.get("use_speaker_visual", False)
+    else:
+        word_range = UGC_DEFAULTS["word_range"]
+        hook_max_words = UGC_DEFAULTS["hook_max_words"]
+        hook_hard_limit = UGC_DEFAULTS["hook_hard_limit"]
+        use_speaker_visual = UGC_DEFAULTS["use_speaker_visual"]
+
+    lines = getattr(script, "lines", []) or []
+    reasons = getattr(script, "reasons", []) or []
 
     # 1. Line count and sequential check
     if not lines:
@@ -293,6 +313,16 @@ def validate_script(
                 code="bengali_ratio_low",
                 severity="hard",
                 message=f"Bengali dialogue has a script ratio of {bengali_ratio} (minimum 0.65 required). Ensure spoken lines are written in Bengali script.",
+            ))
+
+    # 9. Commercial 30s speaker tag check (soft)
+    if use_speaker_visual:
+        missing_speaker = [l.id for l in lines if not getattr(l, "speaker", None)]
+        if len(missing_speaker) == len(lines):
+            issues.append(Issue(
+                code="missing_speaker_tags",
+                severity="soft",
+                message="Commercial 30s scripts should specify 'speaker' roles (e.g. 'Voiceover', 'On-camera talent').",
             ))
 
     return issues

@@ -8,7 +8,7 @@ import {
   MAX_IMAGE_BYTES,
   MAX_MARKET_LENGTH,
 } from '../types/form';
-import type { FormValues, Language } from '../types/form';
+import type { FormValues, Language, ScriptFormat } from '../types/form';
 
 const CATEGORIES = [
   'Skincare',
@@ -22,6 +22,11 @@ const OTHER = '__other__';
 const LANGUAGES: { value: Language; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'bn', label: 'Bangla' },
+];
+
+const SCRIPT_FORMATS: { value: ScriptFormat; label: string }[] = [
+  { value: 'ugc', label: 'UGC Video' },
+  { value: 'commercial_30s', label: '30s Commercial' },
 ];
 
 interface Props {
@@ -248,6 +253,33 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
                   </label>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="field-row">
+            <div className="field">
+              <span className="label" id={id('format')}>
+                Script format
+              </span>
+              <div className="segmented" role="radiogroup" aria-labelledby={id('format')}>
+                {SCRIPT_FORMATS.map((f) => (
+                  <label key={f.value}>
+                    <input
+                      type="radio"
+                      name={id('script_format')}
+                      value={f.value}
+                      checked={(values.script_format ?? 'ugc') === f.value}
+                      onChange={() => onChange({ script_format: f.value })}
+                    />
+                    <span>{f.label}</span>
+                  </label>
+                ))}
+              </div>
+              <span className="hint">
+                {(values.script_format ?? 'ugc') === 'ugc'
+                  ? 'Creator style, fast scroll-stopping hook, 60–90 words'
+                  : 'Broadcast / digital TV commercial, voiceover & scene visual cues, 65–80 words'}
+              </span>
             </div>
           </div>
 

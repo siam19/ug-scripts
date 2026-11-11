@@ -1,6 +1,8 @@
 // apps/web/src/types/form.ts
+import type { ScriptFormat } from 'api-types';
 
 export type Language = 'en' | 'bn';
+export type { ScriptFormat };
 
 export interface FormValues {
   name: string;
@@ -8,6 +10,7 @@ export interface FormValues {
   category: string;
   market: string;
   language: Language;
+  script_format: ScriptFormat;
   image: File | null;
   demoProductId?: string;
   demoImageUrl?: string;
@@ -19,6 +22,7 @@ export const INITIAL_VALUES: FormValues = {
   category: 'Skincare',
   market: 'Bangladesh',
   language: 'en',
+  script_format: 'ugc',
   image: null,
 };
 

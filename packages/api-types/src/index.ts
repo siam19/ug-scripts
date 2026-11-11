@@ -39,12 +39,15 @@ export interface TokenUsage {
   total_tokens: number;
 }
 
+export type ScriptFormat = 'ugc' | 'commercial_30s';
+
 export interface ProgressiveGenerateResponse {
   facts: (Fact | string)[];
   product_appearance?: string;
   angles?: Angle[];
   segments: Segment[];
   scripts: (Script | null)[];
+  script_format?: ScriptFormat;
 }
 
 export type { components, paths };

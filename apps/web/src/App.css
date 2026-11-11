@@ -873,6 +873,12 @@
   gap: 6px;
   justify-items: start;
 }
+.ln-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .kind {
   padding: 2px 9px;
   background: var(--kind-bg);
@@ -880,6 +886,37 @@
   color: var(--kind);
   font-size: 0.8125rem;
   font-weight: 700;
+}
+.ln-speaker-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--line-strong, #cbd5e1);
+  border-radius: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-2, #475569);
+  letter-spacing: 0.02em;
+}
+.ln-visual-cue {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 10px;
+  background: rgba(14, 165, 233, 0.08);
+  border-left: 3px solid #0ea5e9;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: #0369a1;
+  line-height: 1.4;
+  margin: 2px 0;
+}
+.ln-visual-icon {
+  font-style: normal;
+  font-size: 0.875rem;
+  line-height: 1.2;
 }
 .line.is-lit .kind,
 .line.is-selected .kind {

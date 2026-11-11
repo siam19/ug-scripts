@@ -121,6 +121,8 @@ export function ScriptCard({
       views.push({
         uid: item.node.uid,
         kind: item.node.kind,
+        speaker: item.version.speaker ?? item.node.speaker,
+        visual: item.version.visual ?? item.node.visual,
         text: activeText,
         no: displayNo++,
         time: formatTime(startTime),
