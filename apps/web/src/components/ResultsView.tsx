@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { IconChevronRight } from '@tabler/icons-react';
 import type { LineKind, ProgressiveGenerateResponse, Segment } from 'api-types';
 import { useRegenerate } from '../hooks/useRegenerate';
 import {
@@ -56,7 +57,19 @@ export function ResultsView({
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const segmentSectionRef = useRef<HTMLElement>(null);
   const workbenchRef = useRef<HTMLDivElement>(null);
-  const scrolledOnce = useRef(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollTabsRight, setCanScrollTabsRight] = useState(false);
+
+  const checkTabsScroll = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const hasMore = el.scrollLeft + el.clientWidth < el.scrollWidth - 10;
+    setCanScrollTabsRight(hasMore);
+  }, []);
+
+  function scrollTabsRight() {
+    tabsContainerRef.current?.scrollBy({ left: 220, behavior: 'smooth' });
+  }
 
   // Regeneration loading states
   const [isRegeneratingStale, setIsRegeneratingStale] = useState(false);
@@ -158,17 +171,17 @@ export function ResultsView({
     if (visibleFactsCount < totalFacts) {
       timer = window.setTimeout(
         () => setVisibleFactsCount((c) => Math.min(c + 1, totalFacts)),
-        visibleFactsCount === 0 ? 160 : 240,
+        visibleFactsCount === 0 ? 300 : 420,
       );
     } else if (visibleAnglesCount < totalAngles) {
       timer = window.setTimeout(
         () => setVisibleAnglesCount((c) => Math.min(c + 1, totalAngles)),
-        visibleAnglesCount === 0 ? 180 : 250,
+        visibleAnglesCount === 0 ? 360 : 460,
       );
     } else if (visibleSegmentsCount < totalSegments) {
       timer = window.setTimeout(
         () => setVisibleSegmentsCount((c) => Math.min(c + 1, totalSegments)),
-        visibleSegmentsCount === 0 ? 220 : 320,
+        visibleSegmentsCount === 0 ? 400 : 540,
       );
     }
     return () => {
@@ -176,58 +189,172 @@ export function ResultsView({
     };
   }, [visibleFactsCount, visibleAnglesCount, visibleSegmentsCount, totalFacts, totalAngles, totalSegments, prefersReducedMotion]);
 
-  // Auto-scroll bugfix: automatically scroll down to show customer segments and script box in full view
+  const userScrolledUpRef = useRef(false);
+  const scrollAnimRef = useRef<number | null>(null);
+
+  // Reset cancellation on new data
   useEffect(() => {
-    if (!scrolledOnce.current && visibleSegmentsCount > 0) {
-      scrolledOnce.current = true;
-      const smooth = !prefersReducedMotion;
+    userScrolledUpRef.current = false;
+  }, [data]);
 
-      const timer = window.setTimeout(() => {
-        const sectionEl = segmentSectionRef.current;
-        if (!sectionEl) return;
+  // Listen for user upward scroll to cancel auto-follow
+  useEffect(() => {
+    function onWheel(e: WheelEvent) {
+      if (e.deltaY < -1) {
+        userScrolledUpRef.current = true;
+        if (scrollAnimRef.current) {
+          cancelAnimationFrame(scrollAnimRef.current);
+          scrollAnimRef.current = null;
+        }
+      }
+    }
 
-        const scrollTop = window.scrollY || document.documentElement.scrollTop;
-        const rect = sectionEl.getBoundingClientRect();
-        const sectionAbsoluteTop = rect.top + scrollTop;
+    let touchStartY = 0;
+    function onTouchStart(e: TouchEvent) {
+      if (e.touches.length > 0) touchStartY = e.touches[0].clientY;
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (e.touches.length > 0 && e.touches[0].clientY - touchStartY > 10) {
+        userScrolledUpRef.current = true;
+        if (scrollAnimRef.current) {
+          cancelAnimationFrame(scrollAnimRef.current);
+          scrollAnimRef.current = null;
+        }
+      }
+    }
 
-        // Find the script card or skeleton card inside this section
-        const scriptEl = sectionEl.querySelector<HTMLElement>(
-          '.script-skeleton-card, .script-card, .workbench',
-        );
+    function onKeyDown(e: globalThis.KeyboardEvent) {
+      if (['ArrowUp', 'PageUp', 'Home'].includes(e.key)) {
+        userScrolledUpRef.current = true;
+        if (scrollAnimRef.current) {
+          cancelAnimationFrame(scrollAnimRef.current);
+          scrollAnimRef.current = null;
+        }
+      }
+    }
 
-        let targetY = sectionAbsoluteTop - 16;
+    window.addEventListener('wheel', onWheel, { passive: true });
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('wheel', onWheel);
+      window.removeEventListener('touchstart', onTouchStart);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('keydown', onKeyDown);
+      if (scrollAnimRef.current) {
+        cancelAnimationFrame(scrollAnimRef.current);
+        scrollAnimRef.current = null;
+      }
+    };
+  }, []);
 
-        if (scriptEl) {
-          const scriptRect = scriptEl.getBoundingClientRect();
-          const scriptAbsoluteBottom = scriptRect.bottom + scrollTop;
-          const viewportHeight = window.innerHeight;
+  // Smooth easeInOutCubic scroll function
+  const scrollToTargetY = useCallback(
+    (targetY: number, duration = 380) => {
+      if (userScrolledUpRef.current || prefersReducedMotion) return;
+      if (scrollAnimRef.current) {
+        cancelAnimationFrame(scrollAnimRef.current);
+        scrollAnimRef.current = null;
+      }
 
-          // If the script card extends beyond the viewport when aligned to section top,
-          // adjust scroll down so both customer segment tabs and the script card fit in window
-          if (scriptAbsoluteBottom - targetY > viewportHeight - 24) {
-            const tabsEl = sectionEl.querySelector<HTMLElement>('.tabs');
-            if (tabsEl) {
-              const tabsAbsoluteTop = tabsEl.getBoundingClientRect().top + scrollTop;
-              const maxScroll = Math.min(
-                tabsAbsoluteTop - 8,
-                scriptAbsoluteBottom - viewportHeight + 24,
-              );
-              if (maxScroll > targetY) {
-                targetY = maxScroll;
-              }
-            }
+      const startY = window.scrollY || window.pageYOffset;
+      const distance = targetY - startY;
+      if (Math.abs(distance) < 8) return;
+
+      const startTime = performance.now();
+
+      function easeInOutCubic(t: number): number {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      }
+
+      function step(now: number) {
+        if (userScrolledUpRef.current) {
+          scrollAnimRef.current = null;
+          return;
+        }
+        const elapsed = now - startTime;
+        const progress = Math.min(1, elapsed / duration);
+        const eased = easeInOutCubic(progress);
+
+        window.scrollTo(0, startY + distance * eased);
+
+        if (progress < 1) {
+          scrollAnimRef.current = requestAnimationFrame(step);
+        } else {
+          scrollAnimRef.current = null;
+        }
+      }
+
+      scrollAnimRef.current = requestAnimationFrame(step);
+    },
+    [prefersReducedMotion],
+  );
+
+  // Glue viewport to new generations as they pop into existence
+  useEffect(() => {
+    if (userScrolledUpRef.current || prefersReducedMotion) return;
+
+    const t = window.setTimeout(() => {
+      if (userScrolledUpRef.current) return;
+
+      const viewportHeight = window.innerHeight;
+      const scrollY = window.scrollY || window.pageYOffset;
+
+      if (visibleSegmentsCount >= totalSegments && workbenchRef.current) {
+        // Workbench has appeared: frame top of workbench comfortably
+        const rect = workbenchRef.current.getBoundingClientRect();
+        const targetY = Math.max(0, scrollY + rect.top - 24);
+        if (targetY > scrollY + 10) {
+          scrollToTargetY(targetY, 480);
+        }
+      } else if (visibleSegmentsCount > 0 && segmentSectionRef.current) {
+        // Customer segments section popping in
+        const rect = segmentSectionRef.current.getBoundingClientRect();
+        if (rect.bottom > viewportHeight - 60) {
+          const targetY = scrollY + rect.bottom - viewportHeight + 80;
+          scrollToTargetY(targetY, 380);
+        }
+      } else if (visibleAnglesCount > 0) {
+        // New angle card popping in
+        const angleCards = document.querySelectorAll('.angles-grid .angle-card');
+        const lastCard = angleCards[visibleAnglesCount - 1] as HTMLElement | undefined;
+        if (lastCard) {
+          const rect = lastCard.getBoundingClientRect();
+          if (rect.bottom > viewportHeight - 60) {
+            const targetY = scrollY + rect.bottom - viewportHeight + 90;
+            scrollToTargetY(targetY, 360);
           }
         }
+      } else if (visibleFactsCount > 0) {
+        // New fact chip popping in
+        const factChips = document.querySelectorAll('.chip-list .chip-fact');
+        const lastChip = factChips[visibleFactsCount - 1] as HTMLElement | undefined;
+        if (lastChip) {
+          const rect = lastChip.getBoundingClientRect();
+          if (rect.bottom > viewportHeight - 60) {
+            const targetY = scrollY + rect.bottom - viewportHeight + 80;
+            scrollToTargetY(targetY, 340);
+          }
+        }
+      }
+    }, 40);
 
-        window.scrollTo({
-          top: Math.max(0, targetY),
-          behavior: smooth ? 'smooth' : 'auto',
-        });
-      }, 60);
+    return () => window.clearTimeout(t);
+  }, [visibleFactsCount, visibleAnglesCount, visibleSegmentsCount, totalSegments, prefersReducedMotion, scrollToTargetY]);
 
-      return () => window.clearTimeout(timer);
-    }
-  }, [visibleSegmentsCount, prefersReducedMotion]);
+  // Check tab scroll overflow on mount / resize / segment reveal
+  useEffect(() => {
+    checkTabsScroll();
+    const t1 = window.setTimeout(checkTabsScroll, 60);
+    const t2 = window.setTimeout(checkTabsScroll, 250);
+    window.addEventListener('resize', checkTabsScroll);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener('resize', checkTabsScroll);
+    };
+  }, [checkTabsScroll, visibleSegmentsCount, workspace.slots.length]);
 
   // Active slot and script
   const activeSlot =
@@ -235,6 +362,18 @@ export function ResultsView({
   const activeSlotIndex = workspace.slots.findIndex((s) => s.id === activeSlot?.id);
   const activeDoc = activeSlot?.script;
   const activeRev = activeDoc ? activeDoc.revisions[activeDoc.cursor] : null;
+
+  const totalVisibleSlots = Math.min(workspace.slots.length, Math.max(1, visibleSegmentsCount));
+  const currentSlotIndex = Math.max(0, activeSlotIndex);
+
+  function handleCyclePersona(direction: -1 | 1) {
+    if (totalVisibleSlots <= 1) return;
+    const nextIdx = (currentSlotIndex + direction + totalVisibleSlots) % totalVisibleSlots;
+    const nextSlot = workspace.slots[nextIdx];
+    if (nextSlot) {
+      dispatch({ type: 'SET_ACTIVE_SLOT', slotId: nextSlot.id });
+    }
+  }
 
   const isRewritingActiveScript = Boolean(activeSlot && rewritingSlotIds.has(activeSlot.id));
   const isScriptUpdating =
@@ -727,31 +866,50 @@ export function ResultsView({
           </div>
 
           {/* Segment Tabs */}
-          <div className="tabs" role="tablist" aria-label="Customer segments">
-            {workspace.slots.slice(0, visibleSegmentsCount).map((slot, i) => {
-              const isReady = slot.scriptStatus === 'ready';
-              const isOutdated = slotNeedsRegen(workspace, slot);
+          <div className="tabs-wrap">
+            <div
+              ref={tabsContainerRef}
+              onScroll={checkTabsScroll}
+              className="tabs"
+              role="tablist"
+              aria-label="Customer segments"
+            >
+              {workspace.slots.slice(0, visibleSegmentsCount).map((slot, i) => {
+                const isReady = slot.scriptStatus === 'ready';
+                const isOutdated = slotNeedsRegen(workspace, slot);
 
-              return (
-                <SegmentTab
-                  key={slot.id}
-                  index={i}
-                  name={slot.segment.name}
-                  active={workspace.activeSlotId === slot.id}
-                  outdated={isOutdated}
-                  generating={isStreaming && !isReady}
-                  replacing={Boolean(slot.pending)}
-                  tabId={`${uid}-tab-${i}`}
-                  panelId={`${uid}-panel`}
-                  tabRef={(el) => {
-                    tabRefs.current[i] = el;
-                  }}
-                  onSelect={() => dispatch({ type: 'SET_ACTIVE_SLOT', slotId: slot.id })}
-                  onKeyDown={(e) => handleTabKey(e, i)}
-                  onRefresh={() => handleSegmentRefresh(slot)}
-                />
-              );
-            })}
+                return (
+                  <SegmentTab
+                    key={slot.id}
+                    index={i}
+                    name={slot.segment.name}
+                    active={workspace.activeSlotId === slot.id}
+                    outdated={isOutdated}
+                    generating={isStreaming && !isReady}
+                    replacing={Boolean(slot.pending)}
+                    tabId={`${uid}-tab-${i}`}
+                    panelId={`${uid}-panel`}
+                    tabRef={(el) => {
+                      tabRefs.current[i] = el;
+                    }}
+                    onSelect={() => dispatch({ type: 'SET_ACTIVE_SLOT', slotId: slot.id })}
+                    onKeyDown={(e) => handleTabKey(e, i)}
+                    onRefresh={() => handleSegmentRefresh(slot)}
+                  />
+                );
+              })}
+            </div>
+
+            {canScrollTabsRight && (
+              <button
+                type="button"
+                className="tabs-scroll-chevron"
+                aria-label="Scroll more customer segments right"
+                onClick={scrollTabsRight}
+              >
+                <IconChevronRight size={18} aria-hidden="true" />
+              </button>
+            )}
           </div>
 
           {/* Segment Panel */}
@@ -813,6 +971,13 @@ export function ResultsView({
                   hoveredLineUid={hoverLineUid}
                   reasonFocused={focusedReasonIndex !== null}
                   recentlyChangedUids={recentlyChangedUids}
+                  personaInfo={{
+                    current: currentSlotIndex + 1,
+                    total: totalVisibleSlots,
+                    name: activeSlot?.segment.name || 'Segment',
+                    onPrev: () => handleCyclePersona(-1),
+                    onNext: () => handleCyclePersona(1),
+                  }}
                   onLineHover={setHoverLineUid}
                   onLineSelect={(lineUid) =>
                     lineUid

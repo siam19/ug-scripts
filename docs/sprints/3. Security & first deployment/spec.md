@@ -388,3 +388,4 @@ The following architectural items are intentionally deferred from Sprint 3 to ke
 
 
 * [ ] **Step 9**: Create root multi-stage `Dockerfile` and deploy to Cloud Run.
+

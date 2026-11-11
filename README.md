@@ -254,3 +254,4 @@ gcloud run deploy ug-scripts \
 | `bun run test:bot` | Runs Vitest test suite for notifications-bot Cloudflare Worker |
 | `bun run deploy:bot` | Deploys notifications-bot to Cloudflare Workers |
 | `python apps/api/scripts/seed_firestore.py` | Seeds Firestore with demo products and access codes |
+

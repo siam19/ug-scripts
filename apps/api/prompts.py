@@ -56,7 +56,7 @@ FORMAT_SPECS: dict[str, FormatSpec] = {
         voice="First-person creator on a smartphone camera. Relatable, casual, candid, authentic, conversational. Never corporate or announcer-stiff.",
         structure="Fast hook (0-3s, must stop the scroll), authentic body demonstrating the problem/benefit, direct natural CTA.",
         hook_styles=["Curiosity Question", "Problem Callout", "Demo / Before-After"],
-        use_speaker_visual=False,
+        use_speaker_visual=True,
     ),
     "commercial_30s": FormatSpec(
         id="commercial_30s",
@@ -508,10 +508,15 @@ def build_script_prompt(
     lang_block = build_language_block(language, script_format)
 
     if spec.use_speaker_visual:
-        speaker_visual_instructions = (
-            "- speaker: For each line, specify the speaker role (e.g. 'Voiceover (VO)', 'On-camera talent', 'Customer').\n"
-            "- visual: For each line, provide a concise visual direction cue (<= 12 words, in English) describing what is shown on screen."
-        )
+        if spec.id == "commercial_30s":
+            speaker_visual_instructions = (
+                "- speaker: For each line, specify the speaker role (e.g. 'Voiceover (VO)', 'On-camera talent', 'Customer').\n"
+                "- visual: For each line, provide a concise visual direction cue (<= 12 words, in English) describing what is shown on screen."
+            )
+        else:
+            speaker_visual_instructions = (
+                "- visual: For each line, provide a concise visual direction cue (<= 12 words, in English) describing what the creator shows or does on camera (e.g. holding product, reacting to camera, demoing texture)."
+            )
     else:
         speaker_visual_instructions = (
             "- speaker and visual: Leave null / omit for UGC scripts."

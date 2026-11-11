@@ -91,7 +91,7 @@ export function LoadingState() {
                     </span>
                   </div>
                 )}
-                <p>{s.note}</p>
+                {/* <p>{s.note}</p> */}
               </div>
             </li>
           );

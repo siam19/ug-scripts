@@ -25,7 +25,7 @@ UGC_DEFAULTS: dict[str, Any] = {
     "word_range": (60, 90),
     "hook_max_words": 10,
     "hook_hard_limit": 12,
-    "use_speaker_visual": False,
+    "use_speaker_visual": True,
 }
 
 # Punctuation stripping table (preserves whitespace)
@@ -316,7 +316,12 @@ def validate_script(
             ))
 
     # 9. Commercial 30s speaker tag check (soft)
-    if use_speaker_visual:
+    is_commercial = (
+        (isinstance(format_spec, str) and format_spec == "commercial_30s")
+        or (isinstance(format_spec, FormatSpec) and format_spec.id == "commercial_30s")
+        or (isinstance(format_spec, dict) and format_spec.get("id") == "commercial_30s")
+    )
+    if is_commercial and use_speaker_visual:
         missing_speaker = [l.id for l in lines if not getattr(l, "speaker", None)]
         if len(missing_speaker) == len(lines):
             issues.append(Issue(

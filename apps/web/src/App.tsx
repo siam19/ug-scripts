@@ -26,6 +26,13 @@ export default function App() {
   const tokens = useTokenTracker();
   const outputRef = useRef<HTMLElement>(null);
 
+  // Smoothly scroll down to loading state when generation starts
+  useEffect(() => {
+    if (status === 'loading') {
+      outputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [status]);
+
   useEffect(() => {
     function handleUnauthorized() {
       localStorage.removeItem('ug_access_code');
@@ -40,27 +47,12 @@ export default function App() {
     setValues((v) => ({ ...v, ...update }));
   }
 
-  function scrollToBottom() {
-    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const runScroll = () => {
-      window.scrollTo({
-        top: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-        behavior: smooth ? 'smooth' : 'auto',
-      });
-    };
-    requestAnimationFrame(runScroll);
-    setTimeout(runScroll, 80);
-    setTimeout(runScroll, 240);
-  }
-
   function handleSubmit() {
     void generate(values);
-    scrollToBottom();
   }
 
   function handleRetry() {
     retry();
-    scrollToBottom();
   }
 
   return (

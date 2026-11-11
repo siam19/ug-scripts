@@ -372,7 +372,11 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
         </p>
         <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
           <span className="rec-dot" aria-hidden="true" />
-          {submitting ? 'Generating…' : 'Generate UGC scripts'}
+          {submitting
+            ? 'Generating…'
+            : values.script_format === 'commercial_30s'
+              ? 'Generate Commercial Script'
+              : 'Generate UGC Script'}
         </button>
       </div>
     </form>

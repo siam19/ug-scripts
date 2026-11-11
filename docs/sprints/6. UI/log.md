@@ -185,4 +185,121 @@
   - Added `.tb-label-full` and `.tb-label-short` in [`LineToolbar.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/LineToolbar.tsx) so button labels collapse cleanly on mobile ("Regenerate" $\rightarrow$ "Regen") without horizontal overflow.
   - Adjusted mobile `.tb-btn` padding (`0 8px` on `< 699px`, `0 6px` on `< 460px`), keeping the entire toolbar securely within 250px on phones.
 
+---
+
+## Log Entry 8: Right-Edge Horizontal Scroll Chevrons & Damped Harmonic Motion Auto-Scroll
+
+**Date**: 2026-11-12  
+**Status**: Completed  
+**Files Modified**: [`apps/web/src/components/DemoProductPicker.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/DemoProductPicker.tsx), [`apps/web/src/components/ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx), [`apps/web/src/hooks/useDampedAutoScroll.ts`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/hooks/useDampedAutoScroll.ts), [`apps/web/src/App.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css)
+
+---
+
+### 1. Right-Edge Scroll Chevron on Sample Products ([`DemoProductPicker.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/DemoProductPicker.tsx))
+* Wrapped `.shelf-rail` inside `.shelf-rail-wrap` and added a right-edge floating circular button with `IconChevronRight`.
+* Dynamically detects whether more product cards exist to the right (`scrollLeft + clientWidth < scrollWidth - 12`).
+* When tapped or clicked, smoothly steps the rail rightward (`scrollRail(1)`), disappearing automatically when scrolled to the end.
+
+### 2. Segment Tabs Horizontal Scroll Chevron ([`ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx))
+* Wrapped customer segment `.tabs` inside `.tabs-wrap` and added `.tabs-scroll-chevron` with `IconChevronRight`.
+* When segment tabs overflow on mobile screens, the chevron prominently floats on the right edge, indicating additional customer segments and enabling smooth one-touch stepping (`scrollBy({ left: 220 })`).
+
+## Log Entry 9: Mobile Line Gutter Reclamation, Dynamic Script Format Submit Label, & Customer Segment Touch Carousel Overhaul
+
+**Date**: 2026-11-12  
+**Status**: Completed  
+**Files Modified**: [`apps/web/src/components/ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`apps/web/src/components/ProductForm.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ProductForm.tsx), [`apps/web/src/components/ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css)
+
+---
+
+### 1. Mobile Line Gutter Empty Space Reclamation (`ScriptLine.tsx`, `App.css`)
+* **Problem**: In previous layouts, `.ln-gutter` formed a rigid left column spanning the entire card height on mobile. Because the line number and timestamp only take ~28px vertically while dialogue and visual cue take significant vertical space, the space underneath the time in the left column remained completely empty, severely squashing dialogue text and visual cue cards to the right.
+* **Resolution**:
+  - Flattened `.line-hit` children (`ln-gutter`, `ln-meta-row`, `ln-visual-cue`, and `ln-text` / `ln-edit`) to direct grid items.
+  - On desktop (`min-width: 700px`), `.ln-gutter` sits in column 1 spanning all rows (`grid-row: 1 / 4`), while metadata, visual cue (if present), and dialogue text flow sequentially in column 2.
+  - On mobile (`@media (max-width: 699px)`):
+    - Row 1: `.ln-gutter` (number and timestamp inline side-by-side, e.g. `2  0:04`) and `.ln-meta-row` (badges: `Concept`, `Voiceover (VO)`) sit inline together.
+    - Row 2 & 3: `.ln-visual-cue` and `.ln-text` / `.ln-edit` use `grid-column: 1 / -1;`, expanding across 100% of the card width from the far-left edge without indentation, fully reclaiming the unused gutter space for dialogue text.
+  - Removed `IconVideo` from `.ln-visual-cue` and converted it into a subtle editorial direction card (`background: var(--tint); border: 1px solid var(--line); border-radius: 8px; font-style: italic; color: var(--ink-2);`).
+
+### 2. Format-Aware Dynamic Submit Button (`ProductForm.tsx`)
+* **Requirement**: The primary action button text should adapt dynamically to `values.script_format`.
+* **Resolution**:
+  - In [`ProductForm.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ProductForm.tsx), bound the button label to:
+    - `"Generate Commercial Script"` when `values.script_format === 'commercial_30s'`
+    - `"Generate UGC Script"` when `values.script_format === 'ugc'` (or default)
+    - Preserving `"Generating…"` during in-flight pipeline execution.
+
+### 3. Customer Segments Touch Swipe, Right Chevron, & Mobile Card Containment (`ResultsView.tsx`, `App.css`)
+* **Problem**:
+  1. On mobile viewports, the customer segment tabs `.tabs` used `grid-auto-flow: column; grid-auto-columns: minmax(180px, 70%)` without explicit container bounds. This intrinsic grid layout pushed `.tabs-wrap` and `.shell` wider than the viewport (~550px on a 390px screen), creating a page-level horizontal scrollbar.
+  2. Because the page container expanded to the combined width of all tabs, `.tabs.clientWidth` matched its `scrollWidth`, causing `canScrollTabsRight` to evaluate to `false`, hiding the right chevron, and breaking internal touch swiping.
+  3. The `.segment-card` panel expanded to the widened container, causing content and quote text to blow out beyond the right screen edge.
+* **Resolution**:
+  - Converted mobile `.tabs` (`@media (max-width: 699px)`) to a dedicated scroll-snap flex rail:
+    - `display: flex; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; gap: 8px;`
+    - Hidden scrollbars (`scrollbar-width: none; -ms-overflow-style: none;`) to keep the interface clean.
+  - Styled `.tab-wrap` on mobile with `flex: 0 0 74%; max-width: 250px; min-width: 180px; scroll-snap-align: start; box-sizing: border-box;` so the active tab is prominent while the next tab peeks from the right edge.
+  - Constrained `.tabs-wrap`, `.tab-panel`, `.segment-card`, `.segment-main`, and `.pain` to `width: 100%; max-width: 100%; min-width: 0; box-sizing: border-box; word-break: break-word;` with `flex-wrap: wrap;` on `h3` and `.segment-lead-angles`.
+## Log Entry 10: Mobile Buyer Persona Cycler, Eased Auto-Scroll, Reveal Pacing, & Editbar Mobile Cleanup
+
+**Date**: 2026-11-12  
+**Status**: Completed  
+**Files Modified**: [`apps/web/src/components/ScriptCard.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptCard.tsx), [`apps/web/src/components/ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx), [`apps/web/src/components/ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css), [`apps/web/src/App.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.tsx)
+
+---
+
+### 1. Mobile Buyer Persona Cycler in Workbench ([`ScriptCard.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptCard.tsx), [`ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx), [`App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css))
+* **Problem**: On mobile phones, once users scroll down to review or edit dialogue lines in the script workbench, the customer segment tabs are off-screen above. Switching between buyer personas required repeatedly scrolling all the way back up to the top.
+* **Resolution**:
+  - Implemented `.workbench-persona-bar` at the top of [`ScriptCard.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptCard.tsx), active exclusively on mobile (`@media (min-width: 700px) { display: none !important; }`).
+  - Displays circular navigation buttons (`<` and `>`), a clean uppercase kicker (`BUYER PERSONA 2 OF 3`), and the active persona name.
+  - Tapping `<` or `>` wraps and cycles through all available customer segments, instantly updating dialogue lines, pacing meters, and words without scrolling.
+
+### 2. Auto-Scroll "Glued to New Generations" with Ease-in-Out Cubic ([`ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx))
+* **Diagnosis**: The previous `useDampedAutoScroll` stopped on frame 1 because it detected that the script data had already arrived over the network, leaving the screen frozen at the facts section while cards popped in below the fold.
+* **Resolution**:
+  - Replaced damped physics with a direct mathematical `easeInOutCubic` scroll animator directly inside [`ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx).
+  - Actively tracks the newest popped-in elements (`lastChip`, `lastCard`, `segmentSectionRef`, and `workbenchRef`): whenever a newly generated card extends below the fold (`rect.bottom > window.innerHeight - 60`), the viewport smoothly glides down with ~80px padding to keep the newly born element in comfortable focus.
+  - Preserves user control: any upward touch swipe, wheel scroll, or arrow key immediately cancels auto-scroll.
+
+### 3. Lowered Artificial Generation Rate ([`ResultsView.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ResultsView.tsx))
+* Relaxed pop-in pacing timers to allow users to comfortably read items as they appear:
+  - Facts: `300ms` initial, `420ms` per item (previously 240ms).
+  - Angles: `360ms` initial, `460ms` per card (previously 250ms).
+  - Customer Segments: `400ms` initial, `540ms` per segment (previously 320ms).
+
+### 4. Line Edit Toolbar Mobile Cleanup ([`App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css))
+* **Requirement**: Hide keyboard shortcuts text (`↵ save · Shift+↵ newline · Esc cancel`) on mobile devices and position Cancel and Save buttons neatly at the side.
+* **Resolution**:
+  - In `@media (max-width: 699px)`, set `.tb-hint { display: none; }` and `.line-editbar { justify-content: flex-end; gap: 8px; }`.
+
+---
+
+## Log Entry 11: Speaker Badge Concealment, Visual Direction Lead Labeling, & Universal Visual Cues for UGC
+
+**Date**: 2026-11-12  
+**Status**: Completed  
+**Files Modified**: [`apps/web/src/components/ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`apps/web/src/App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css), [`apps/api/prompts.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/prompts.py), [`apps/api/validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/validation.py), [`apps/api/tests/test_format_and_planning.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/tests/test_format_and_planning.py)
+
+---
+
+### 1. Speaker Badge Hidden in Line Cards ([`ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx))
+* Commented out the `line.speaker` badge block (`.ln-speaker-badge`) in `ScriptLine.tsx` per user design request, keeping dialogue lines clean and focused on structural roles (`Hook`, `Concept`, `CTA`).
+* Cleaned up unused `IconVolume` import.
+
+### 2. Bold "Visual Direction: " Lead Label in Visual Cue ([`ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), [`App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css))
+* In [`ScriptLine.tsx`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/components/ScriptLine.tsx), prepended `<strong>Visual Direction: </strong>` inside `.ln-visual-cue` ahead of the shot description.
+* In [`App.css`](file:///home/bast0k/projects/ug-script-writer/apps/web/src/App.css), styled `.ln-visual-cue strong` with `font-weight: 700; font-style: normal; color: var(--ink); margin-right: 2px;`, establishing a crisp upright label preceding the italic direction cue text.
+
+### 3. Enabled Visual Cues for UGC Video Scripts ([`prompts.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/prompts.py), [`validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/validation.py))
+* Updated `FORMAT_SPECS["ugc"].use_speaker_visual = True` in [`prompts.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/prompts.py).
+* In `build_script_prompt`, added clear visual cue instructions for UGC scripts:
+  - `- visual: For each line, provide a concise visual direction cue (<= 12 words, in English) describing what the creator shows or does on camera (e.g. holding product, reacting to camera, demoing texture).`
+* Updated [`validation.py`](file:///home/bast0k/projects/ug-script-writer/apps/api/validation.py) and test suites so all 3 customer segments reliably receive visual cues across both UGC and 30s Commercial formats.
+
+
+
+
+
 

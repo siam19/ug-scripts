@@ -34,7 +34,7 @@ def test_format_specs_defined():
     assert ugc.word_range == (60, 90)
     assert ugc.hook_max_words == 10
     assert ugc.hook_hard_limit == 12
-    assert ugc.use_speaker_visual is False
+    assert ugc.use_speaker_visual is True
     assert len(ugc.hook_styles) >= 3
 
     comm = FORMAT_SPECS["commercial_30s"]

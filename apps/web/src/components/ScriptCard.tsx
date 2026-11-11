@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { LineKind } from 'api-types';
-import { IconCheck, IconCopy } from '@tabler/icons-react';
+import { IconCheck, IconChevronLeft, IconChevronRight, IconCopy } from '@tabler/icons-react';
 import {
   countWords,
   formatTime,
@@ -32,6 +32,14 @@ async function copyToClipboard(text: string): Promise<void> {
   }
 }
 
+export interface PersonaCyclerInfo {
+  current: number;
+  total: number;
+  name: string;
+  onPrev: () => void;
+  onNext: () => void;
+}
+
 interface Props {
   doc: ScriptDoc;
   scope: ScopeVersion | null;
@@ -40,6 +48,7 @@ interface Props {
   hoveredLineUid: Uid | null;
   reasonFocused: boolean;
   recentlyChangedUids?: ReadonlySet<Uid>;
+  personaInfo?: PersonaCyclerInfo;
   onLineHover: (uid: Uid | null) => void;
   onLineSelect: (uid: Uid | null) => void;
   onEditLine: (uid: Uid, text: string) => void;
@@ -59,6 +68,7 @@ export function ScriptCard({
   hoveredLineUid,
   reasonFocused,
   recentlyChangedUids = new Set(),
+  personaInfo,
   onLineHover,
   onLineSelect,
   onEditLine,
@@ -247,6 +257,39 @@ export function ScriptCard({
         topOffset={railTopY}
         onStep={onStepScope}
       />
+
+      {personaInfo && personaInfo.total > 1 && (
+        <div
+          className="workbench-persona-bar"
+          role="navigation"
+          aria-label="Buyer persona / customer segment switcher"
+        >
+          <button
+            type="button"
+            className="persona-nav-btn"
+            onClick={personaInfo.onPrev}
+            aria-label="Previous buyer persona"
+          >
+            <IconChevronLeft size={18} aria-hidden="true" />
+          </button>
+
+          <div className="persona-nav-content">
+            <span className="persona-nav-kicker">
+              Buyer Persona {personaInfo.current} of {personaInfo.total}
+            </span>
+            <span className="persona-nav-title">{personaInfo.name}</span>
+          </div>
+
+          <button
+            type="button"
+            className="persona-nav-btn"
+            onClick={personaInfo.onNext}
+            aria-label="Next buyer persona"
+          >
+            <IconChevronRight size={18} aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       <header className="script-head">
         <div>

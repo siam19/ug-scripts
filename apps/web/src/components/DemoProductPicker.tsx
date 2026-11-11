@@ -100,6 +100,25 @@ export function DemoProductPicker({ onSelect, selectedId }: Props) {
   }
 
   const stackItems = products.slice(0, 4);
+  const [canScrollRight, setCanScrollRight] = useState(true);
+
+  const checkScroll = useCallback(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const hasMore = el.scrollLeft + el.clientWidth < el.scrollWidth - 12;
+    setCanScrollRight(hasMore);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    checkScroll();
+    const t = window.setTimeout(checkScroll, 100);
+    window.addEventListener('resize', checkScroll);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('resize', checkScroll);
+    };
+  }, [open, visible, checkScroll]);
 
   return (
     <div className="shelf" ref={wrapRef}>
@@ -197,51 +216,64 @@ export function DemoProductPicker({ onSelect, selectedId }: Props) {
             </p>
           )}
 
-          <div className="shelf-rail" ref={railRef}>
-            {loading &&
-              [0, 1, 2, 3, 4].map((i) => (
-                <div key={i} className="shelf-card is-skeleton" aria-hidden="true">
-                  <span className="shelf-photo" />
-                  <span className="shelf-name">&nbsp;</span>
-                </div>
-              ))}
+          <div className="shelf-rail-wrap">
+            <div className="shelf-rail" ref={railRef} onScroll={checkScroll}>
+              {loading &&
+                [0, 1, 2, 3, 4].map((i) => (
+                  <div key={i} className="shelf-card is-skeleton" aria-hidden="true">
+                    <span className="shelf-photo" />
+                    <span className="shelf-name">&nbsp;</span>
+                  </div>
+                ))}
 
-            {!loading &&
-              visible.map((p) => {
-                const isSelected = selectedId === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className={`shelf-card${isSelected ? ' is-selected' : ''}`}
-                    aria-pressed={isSelected}
-                    title={p.description}
-                    onClick={() => {
-                      onSelect(p);
-                      setOpen(false);
-                    }}
-                  >
-                    <span className="shelf-photo">
-                      <img
-                        src={p.image_url}
-                        alt=""
-                        loading="lazy"
-                        onError={(e) => {
-                          e.currentTarget.style.visibility = 'hidden';
-                        }}
-                      />
-                      <LangChip lang={p.language} />
-                      {isSelected && (
-                        <span className="shelf-check">
-                          <IconCheck size={14} aria-hidden="true" />
-                        </span>
-                      )}
-                    </span>
-                    <span className="shelf-name">{p.name}</span>
-                    <span className="shelf-meta">{p.category}</span>
-                  </button>
-                );
-              })}
+              {!loading &&
+                visible.map((p) => {
+                  const isSelected = selectedId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`shelf-card${isSelected ? ' is-selected' : ''}`}
+                      aria-pressed={isSelected}
+                      title={p.description}
+                      onClick={() => {
+                        onSelect(p);
+                        setOpen(false);
+                      }}
+                    >
+                      <span className="shelf-photo">
+                        <img
+                          src={p.image_url}
+                          alt=""
+                          loading="lazy"
+                          onError={(e) => {
+                            e.currentTarget.style.visibility = 'hidden';
+                          }}
+                        />
+                        <LangChip lang={p.language} />
+                        {isSelected && (
+                          <span className="shelf-check">
+                            <IconCheck size={14} aria-hidden="true" />
+                          </span>
+                        )}
+                      </span>
+                      <span className="shelf-name">{p.name}</span>
+                      <span className="shelf-meta">{p.category}</span>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {canScrollRight && visible.length > 2 && (
+              <button
+                type="button"
+                className="shelf-scroll-chevron"
+                aria-label="Scroll more products right"
+                onClick={() => scrollRail(1)}
+              >
+                <IconChevronRight size={18} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>
       )}

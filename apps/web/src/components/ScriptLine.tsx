@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { LineKind } from 'api-types';
-import { IconArrowBackUp, IconCheck, IconSpeakerphone, IconVideo, IconX } from '@tabler/icons-react';
+import { IconArrowBackUp, IconCheck, IconX } from '@tabler/icons-react';
 import { LineToolbar } from './LineToolbar';
 import type { LinePending } from './LineToolbar';
 import { ScopeBadge } from './VersionRail';
@@ -191,39 +191,42 @@ export function ScriptLine(p: Props) {
           <span className="ln-id">{line.no}</span>
           <span className="ln-time">{line.time}</span>
         </div>
-        <div className="ln-body">
-          <div className="ln-meta-row">
-            <span className="kind">
-              {line.pending ? 'Rewriting…' : KIND_LABEL[line.kind] ?? line.kind}
+
+        <div className="ln-meta-row">
+          <span className="kind">
+            {line.pending ? 'Rewriting…' : KIND_LABEL[line.kind] ?? line.kind}
+          </span>
+          {/* Speaker badge hidden per user request
+          {line.speaker && (
+            <span className="ln-speaker-badge">
+              <IconVolume size={12} className="ln-speaker-icon" aria-hidden="true" />
+              <span>{line.speaker}</span>
             </span>
-            {line.speaker && (
-              <span className="ln-speaker-badge">
-                <IconSpeakerphone size={12} className="ln-speaker-icon" aria-hidden="true" />
-                <span>{line.speaker}</span>
-              </span>
-            )}
-          </div>
-          {line.visual && (
-            <div className="ln-visual-cue">
-              <IconVideo size={13} className="ln-visual-cue-icon" aria-hidden="true" />
-              <span>{line.visual}</span>
-            </div>
           )}
-          {editing ? (
-            <textarea
-              ref={area}
-              className="ln-edit"
-              rows={1}
-              value={draft}
-              autoFocus
-              aria-label={`Edit line ${line.no}`}
-              onChange={(e) => handleDraft(e.target.value)}
-              onKeyDown={handleAreaKey}
-            />
-          ) : (
-            <p className="ln-text">{line.text}</p>
-          )}
+          */}
         </div>
+
+        {line.visual && (
+          <div className="ln-visual-cue">
+            <strong>Visual Direction: </strong>
+            <span>{line.visual}</span>
+          </div>
+        )}
+
+        {editing ? (
+          <textarea
+            ref={area}
+            className="ln-edit"
+            rows={1}
+            value={draft}
+            autoFocus
+            aria-label={`Edit line ${line.no}`}
+            onChange={(e) => handleDraft(e.target.value)}
+            onKeyDown={handleAreaKey}
+          />
+        ) : (
+          <p className="ln-text">{line.text}</p>
+        )}
       </div>
 
       {line.pending && <span className="ln-progress" aria-hidden="true" />}
