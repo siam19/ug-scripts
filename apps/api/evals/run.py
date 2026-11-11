@@ -204,6 +204,7 @@ async def evaluate_single_product(
             description=description,
             market=market,
             parts=[img_part],
+            script_format=format_type,
         )
         t_stage1_end = time.perf_counter()
 
@@ -216,6 +217,7 @@ async def evaluate_single_product(
             facts=segs.product_facts,
             segments=segs.segments,
             angles=segs.angles,
+            script_format=format_type,
         )
         t_stage2_end = time.perf_counter()
 
