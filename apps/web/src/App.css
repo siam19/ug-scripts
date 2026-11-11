@@ -24,10 +24,25 @@
 .masthead {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.masthead-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-shrink: 0;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 1.0625rem;
+  white-space: nowrap;
+}
+
+.masthead-title {
+  white-space: nowrap;
 }
 
 .rec-dot {
@@ -396,6 +411,73 @@
 .stage.is-done .stage-mark {
   border-color: var(--cta);
   background: var(--cta);
+}
+
+/* Animated activity ticker between stage title and note */
+.stage-ticker-wrap {
+  height: 28px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  margin: 6px 0 4px;
+}
+
+.stage-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  animation: stageTickerSwipeUp 0.38s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.stage-ticker-text {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--concept, #2a55d4);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.stage-ticker-arrow {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--concept, #2a55d4);
+  transform: translateY(-0.5px);
+  animation: stageTickerNudge 1.2s ease-in-out infinite;
+}
+
+@keyframes stageTickerSwipeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes stageTickerNudge {
+  0%, 100% {
+    transform: translateY(-0.5px) translateX(0);
+  }
+  50% {
+    transform: translateY(-0.5px) translateX(2.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-ticker-item {
+    animation: none;
+  }
+  .stage-ticker-arrow {
+    animation: none;
+  }
 }
 
 @keyframes pulse {
@@ -1130,15 +1212,15 @@
   border-style: dashed;
 }
 .chip-val-tag {
-  font-size: 0.65rem;
-  letter-spacing: 0.04em;
+  font: 700 0.6875rem/1 var(--font-body);
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--surface-raised, rgba(0, 0, 0, 0.06));
-  color: var(--muted);
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  color: var(--ink-2);
   flex: none;
-  margin-top: 2px;
 }
 .chip-dot {
   flex: none;
@@ -1402,8 +1484,16 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  cursor: help;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   outline: none;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .angle-badge {
@@ -1604,7 +1694,24 @@
   .angle-card {
     flex: 0 0 84vw;
     max-width: 320px;
+    min-height: 120px;
     scroll-snap-align: start;
+  }
+  .angle-tooltip {
+    bottom: auto;
+    top: calc(100% + 6px);
+    left: 0;
+    transform: none;
+    width: min(250px, calc(84vw - 28px));
+    max-width: 260px;
+    z-index: 100;
+  }
+  .angle-tooltip::after {
+    top: auto;
+    bottom: 100%;
+    left: 20px;
+    transform: none;
+    border-color: transparent transparent var(--ink, #14181a) transparent;
   }
 }
 
@@ -2152,35 +2259,7 @@
   animation: spin 0.9s linear infinite;
 }
 
-/* ---------- Masthead Actions & Saved Scripts Drawer ---------- */
-.masthead {
-  display: flex;
-  align-items: center;
-}
-.masthead-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.saved-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--ink);
-  cursor: pointer;
-  transition: border-color 0.12s, background-color 0.12s;
-}
-.saved-btn:hover {
-  border-color: var(--ink);
-  background: var(--tint);
-}
+/* ---------- Saved Scripts Drawer ---------- */
 .saved-count-pill {
   display: inline-grid;
   place-items: center;
@@ -2456,16 +2535,105 @@
 /* =====================================================================
    Masthead controls: one shared look for Tokens / Access / Saved scripts
    ===================================================================== */
-.masthead-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.masthead-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
 .meter-btn,
 .access-btn,
 .saved-btn {
-  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px;
-  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-  color: var(--ink); font: 600 0.8125rem/1 var(--font-body); cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  font: 600 0.8125rem/1 var(--font-body);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.15s, background-color 0.15s, transform 0.1s ease;
 }
-.meter-btn:hover, .access-btn:hover, .saved-btn:hover, .meter-btn.is-open { border-color: var(--ink); }
+
+.meter-btn:hover,
+.access-btn:hover,
+.saved-btn:hover,
+.meter-btn.is-open {
+  border-color: var(--ink);
+}
+
+.meter-btn:active,
+.access-btn:active,
+.saved-btn:active {
+  transform: scale(0.98);
+}
+
+.saved-btn-label,
+.saved-btn-full,
+.access-btn-label {
+  display: inline;
+}
+
+/* Responsive masthead breakdown for mobile viewports */
+@media (max-width: 640px) {
+  .masthead {
+    gap: 8px;
+  }
+  .masthead-brand {
+    font-size: 0.9375rem;
+    gap: 6px;
+  }
+  .masthead-actions {
+    gap: 6px;
+  }
+  .meter-label {
+    display: none;
+  }
+  .saved-btn-full {
+    display: none;
+  }
+  .meter-btn,
+  .access-btn,
+  .saved-btn {
+    height: 34px;
+    padding: 0 9px;
+    gap: 5px;
+    font-size: 0.75rem;
+  }
+}
+
+@media (max-width: 460px) {
+  .access-btn-label {
+    display: none;
+  }
+  .saved-btn-label {
+    display: none;
+  }
+  .access-btn,
+  .saved-btn {
+    padding: 0 8px;
+  }
+  .meter-btn {
+    padding: 0 8px;
+  }
+  .meter-pop {
+    width: calc(100vw - 32px);
+    max-width: 292px;
+  }
+}
+
+@media (max-width: 360px) {
+  .masthead-title {
+    font-size: 0.875rem;
+  }
+}
 
 /* ---------- Token meter ---------- */
 .meter { position: relative; }
@@ -2508,10 +2676,14 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(15, 23, 42, 0.25);
+  background: rgba(20, 24, 26, 0.4);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   animation: gateFade 0.25s ease-out;
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 .gate-card {
@@ -2519,7 +2691,8 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 440px;
+  max-width: min(440px, calc(100vw - 32px));
+  box-sizing: border-box;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -2885,7 +3058,7 @@
 .shelf-card:focus-visible .shelf-photo { outline: 2px solid var(--concept); outline-offset: 3px; }
 .shelf-name { font: 600 0.9375rem/1.25 var(--font-display); letter-spacing: -0.005em; }
 .shelf-meta { color: var(--ink-3); font-size: 0.75rem; }
-.shelf-lang { position: absolute; left: 8px; top: 8px; padding: 4px 7px; color: var(--ink); background: rgba(255, 255, 255, 0.92); border-radius: 6px; font: 700 0.6875rem/1 var(--font-body); letter-spacing: 0.05em; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.shelf-lang { position: absolute; left: 8px; top: 8px; padding: 4px 8px; color: var(--ink); background: rgba(255, 255, 255, 0.92); border-radius: 999px; font: 700 0.6875rem/1 var(--font-body); letter-spacing: 0.05em; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .shelf-lang.is-bn { font-size: 0.75rem; letter-spacing: 0; }
 .shelf-check { position: absolute; right: 8px; top: 8px; display: grid; place-items: center; width: 22px; height: 22px; color: #fff; background: var(--ink); border-radius: 50%; }
 .shelf-card.is-skeleton { cursor: default; }

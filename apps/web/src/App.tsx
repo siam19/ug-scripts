@@ -40,29 +40,36 @@ export default function App() {
     setValues((v) => ({ ...v, ...update }));
   }
 
-  function scrollToOutput() {
+  function scrollToBottom() {
     const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    outputRef.current?.scrollIntoView({
-      behavior: smooth ? 'smooth' : 'auto',
-      block: 'start',
-    });
+    const runScroll = () => {
+      window.scrollTo({
+        top: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+    };
+    requestAnimationFrame(runScroll);
+    setTimeout(runScroll, 80);
+    setTimeout(runScroll, 240);
   }
 
   function handleSubmit() {
     void generate(values);
-    scrollToOutput();
+    scrollToBottom();
   }
 
   function handleRetry() {
     retry();
-    scrollToOutput();
+    scrollToBottom();
   }
 
   return (
     <div className="shell">
       <header className="masthead">
-        <span className="rec-dot" aria-hidden="true" />
-        <span>Script Assistant</span>
+        <div className="masthead-brand">
+          <span className="rec-dot" aria-hidden="true" />
+          <span className="masthead-title">Script Assistant</span>
+        </div>
 
         <div className="masthead-actions">
           <TokenMeter tracker={tokens} />
@@ -75,18 +82,22 @@ export default function App() {
               setAccessModalOpen(true);
             }}
             title="Manage demo access key"
+            aria-label="Manage demo access key"
           >
             <IconKey size={15} aria-hidden="true" />
-            <span>Access</span>
+            <span className="access-btn-label">Access</span>
           </button>
 
           <button
             type="button"
             className="saved-btn"
             onClick={() => setDrawerOpen(true)}
+            title={`Saved scripts (${savedScripts.length})`}
+            aria-label={`Saved scripts (${savedScripts.length})`}
           >
             <IconBookmark size={16} aria-hidden="true" />
-            <span>Saved scripts</span>
+            <span className="saved-btn-label">Saved</span>
+            <span className="saved-btn-full">&nbsp;scripts</span>
             {savedScripts.length > 0 && (
               <span className="saved-count-pill">{savedScripts.length}</span>
             )}

@@ -5,10 +5,24 @@ const STAGES = [
   {
     title: 'Analyzing packaging and verifying facts',
     note: 'Reading the photo and your description for claims the scripts can safely use.',
+    activities: [
+      'Analyzing Image(s) & packaging details…',
+      'Detecting product features & visual cues…',
+      'Extracting core claims & ingredients…',
+      'Formulating creative psychological angles…',
+      'Grounding visual anchors from pack shot…',
+    ],
   },
   {
     title: 'Writing 3 creator scripts',
     note: 'One script per customer segment, each with its own hook style.',
+    activities: [
+      'Envisioning Market Segments & buyer personas…',
+      'Crafting 3-second scroll-stopping hooks…',
+      'Drafting dialogue lines with psychological pacing…',
+      'Polishing natural speech rhythm & cadence…',
+      'Synthesizing conversion marketing rationales…',
+    ],
   },
 ];
 
@@ -18,12 +32,20 @@ const STAGE_ONE_SECONDS = 7;
 
 export function LoadingState() {
   const [elapsed, setElapsed] = useState(0);
+  const [activityIndex, setActivityIndex] = useState(0);
 
   useEffect(() => {
     const start = Date.now();
     const timer = window.setInterval(() => {
       setElapsed((Date.now() - start) / 1000);
     }, 250);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActivityIndex((idx) => idx + 1);
+    }, 2200);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -44,11 +66,19 @@ export function LoadingState() {
       <ol className="stages">
         {STAGES.map((s, i) => {
           const state = i < stage ? 'done' : i === stage ? 'active' : 'pending';
+          const currentActivity = s.activities[activityIndex % s.activities.length];
           return (
             <li key={s.title} className={`stage is-${state}`}>
               <span className="stage-mark" aria-hidden="true" />
               <div>
                 <strong>{s.title}</strong>
+                {state === 'active' && (
+                  <div className="stage-ticker-wrap">
+                    <div key={`${i}-${activityIndex}`} className="stage-ticker-item">
+                      <span className="stage-ticker-text">› {currentActivity}</span>
+                    </div>
+                  </div>
+                )}
                 <p>{s.note}</p>
               </div>
             </li>

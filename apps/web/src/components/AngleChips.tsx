@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Angle, AngleType } from 'api-types';
 import {
   IconChevronDown,
@@ -76,17 +76,45 @@ function AngleTypeBadge({ type }: { type: AngleType }) {
     category: 'framing' as const,
     categoryLabel: 'Strategy',
   };
-  const [showTooltip, setShowTooltip] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const showTooltip = pinned || hovered;
+  const wrapRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!pinned) return;
+    function onPointerDown(e: PointerEvent | MouseEvent | TouchEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setPinned(false);
+        setHovered(false);
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [pinned]);
 
   return (
-    <div
+    <button
+      ref={wrapRef}
+      type="button"
       className="angle-type-pill-wrap"
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
-      onFocus={() => setShowTooltip(true)}
-      onBlur={() => setShowTooltip(false)}
-      tabIndex={0}
-      role="note"
+      onClick={(e) => {
+        e.stopPropagation();
+        setPinned((p) => !p);
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => {
+        setHovered(false);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          setPinned(false);
+          setHovered(false);
+        }
+      }}
+      aria-expanded={showTooltip}
       aria-label={`${meta.label}: ${meta.meaning}`}
     >
       <span className={`angle-badge angle-badge-${type}`}>
@@ -95,7 +123,7 @@ function AngleTypeBadge({ type }: { type: AngleType }) {
       </span>
 
       {showTooltip && (
-        <div className="angle-tooltip" role="tooltip">
+        <div className="angle-tooltip" role="tooltip" onClick={(e) => e.stopPropagation()}>
           <div className="angle-tooltip-head">
             <strong>{meta.label}</strong>
             <span className={`angle-tooltip-cat ${meta.category}`}>{meta.categoryLabel}</span>
@@ -103,7 +131,7 @@ function AngleTypeBadge({ type }: { type: AngleType }) {
           <p className="angle-tooltip-desc">{meta.meaning}</p>
         </div>
       )}
-    </div>
+    </button>
   );
 }
 

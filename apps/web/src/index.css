@@ -44,6 +44,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: clip;
 }
 
 body {
@@ -54,6 +55,7 @@ body {
   font-size: 16px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 h1,

@@ -139,10 +139,14 @@ export function ResultsView({
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const totalFacts = data.facts.length;
+  const totalAngles = (data.angles || []).length;
   const totalSegments = data.segments.length;
 
   const [visibleFactsCount, setVisibleFactsCount] = useState(() =>
     prefersReducedMotion ? totalFacts : 0,
+  );
+  const [visibleAnglesCount, setVisibleAnglesCount] = useState(() =>
+    prefersReducedMotion ? totalAngles : 0,
   );
   const [visibleSegmentsCount, setVisibleSegmentsCount] = useState(() =>
     prefersReducedMotion ? totalSegments : 0,
@@ -154,18 +158,23 @@ export function ResultsView({
     if (visibleFactsCount < totalFacts) {
       timer = window.setTimeout(
         () => setVisibleFactsCount((c) => Math.min(c + 1, totalFacts)),
-        visibleFactsCount === 0 ? 50 : 100,
+        visibleFactsCount === 0 ? 160 : 240,
+      );
+    } else if (visibleAnglesCount < totalAngles) {
+      timer = window.setTimeout(
+        () => setVisibleAnglesCount((c) => Math.min(c + 1, totalAngles)),
+        visibleAnglesCount === 0 ? 180 : 250,
       );
     } else if (visibleSegmentsCount < totalSegments) {
       timer = window.setTimeout(
         () => setVisibleSegmentsCount((c) => Math.min(c + 1, totalSegments)),
-        visibleSegmentsCount === 0 ? 120 : 160,
+        visibleSegmentsCount === 0 ? 220 : 320,
       );
     }
     return () => {
       if (timer) window.clearTimeout(timer);
     };
-  }, [visibleFactsCount, visibleSegmentsCount, totalFacts, totalSegments, prefersReducedMotion]);
+  }, [visibleFactsCount, visibleAnglesCount, visibleSegmentsCount, totalFacts, totalAngles, totalSegments, prefersReducedMotion]);
 
   // Auto-scroll bugfix: automatically scroll down to show customer segments and script box in full view
   useEffect(() => {
@@ -683,7 +692,7 @@ export function ResultsView({
       )}
 
       {/* 1b. Creative Angles Section */}
-      {workspace.angles && workspace.angles.length > 0 && (
+      {workspace.angles && workspace.angles.length > 0 && visibleAnglesCount > 0 && (
         <section className="results-section">
           <div className="section-head">
             <h2>Creative angles</h2>
@@ -691,7 +700,7 @@ export function ResultsView({
               Hooks, objection handling, and psychological moments connecting product facts to buyer motivations.
             </p>
           </div>
-          <AngleChips angles={workspace.angles} />
+          <AngleChips angles={workspace.angles.slice(0, visibleAnglesCount)} />
         </section>
       )}
 

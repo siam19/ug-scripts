@@ -237,6 +237,7 @@ export function AccessGateModal({ open, initialMode = 'enter_code', onUnlocked, 
     setCode(val);
     setErrorMsg(null);
     if (val.length === 5) {
+      codeRef.current?.blur();
       void submitCode(val);
     }
   }
