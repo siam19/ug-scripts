@@ -19,7 +19,7 @@ import type { FormValues } from './types/form';
 export default function App() {
   // Form values live here, so they survive loading, errors and retries.
   const [values, setValues] = useState<FormValues>(INITIAL_VALUES);
-  const { status, data, error, runId, generate, retry, clearError } = useGenerateScript();
+  const { status, data, error, runId, logId, generate, retry, clearError } = useGenerateScript();
   const { savedScripts, remove } = useSavedScripts();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [accessModalOpen, setAccessModalOpen] = useState(() => !localStorage.getItem('ug_access_code'));
@@ -134,6 +134,7 @@ export default function App() {
           <ResultsView
             key={runId}
             data={data}
+            logId={logId}
             isStreaming={status === 'streaming'}
             meta={{
               name: values.name,

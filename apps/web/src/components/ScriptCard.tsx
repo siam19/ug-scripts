@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
-import type { LineKind } from 'api-types';
+import type { LineKind, Script } from 'api-types';
 import {
   IconCheck,
   IconChevronLeft,
@@ -21,6 +20,7 @@ import {
 } from '../state/script-tree';
 import type { ResolvedLineItem } from '../state/script-tree';
 import type { ScriptDoc, Uid } from '../state/types';
+import { FeedbackBar } from './FeedbackBar';
 import { LineTombstone, ScriptLine } from './ScriptLine';
 import type { LineView } from './ScriptLine';
 import { VersionRail } from './VersionRail';
@@ -61,6 +61,8 @@ interface Props {
   reasonFocused: boolean;
   recentlyChangedUids?: ReadonlySet<Uid>;
   personaInfo?: PersonaCyclerInfo;
+  logId?: string | null;
+  scriptIndex?: number;
   exportContext?: Omit<ExportScriptPayload, 'lines'>;
   onNotify?: (
     message: string,
@@ -69,7 +71,6 @@ interface Props {
     isError?: boolean,
   ) => void;
   onCopyScript?: () => void;
-  footer?: ReactNode;
   onLineHover: (uid: Uid | null) => void;
   onLineSelect: (uid: Uid | null) => void;
   onEditLine: (uid: Uid, text: string) => void;
@@ -90,10 +91,11 @@ export function ScriptCard({
   reasonFocused,
   recentlyChangedUids = new Set(),
   personaInfo,
+  logId,
+  scriptIndex,
   exportContext,
   onNotify,
   onCopyScript,
-  footer,
   onLineHover,
   onLineSelect,
   onEditLine,
@@ -197,6 +199,38 @@ export function ScriptCard({
   }, [doc, drafts]);
 
   const canDelete = lineViews.length > 1;
+
+  const scriptSnapshot: Script | null = useMemo(() => {
+    if (lineViews.length === 0) return null;
+    const segmentName = exportContext?.segment.name ?? personaInfo?.name ?? 'Segment';
+    const uidToNo = new Map(lineViews.map((v) => [v.uid, v.no]));
+    const activeRev = doc.revisions[doc.cursor];
+    const reasons = exportContext?.reasons
+      ? exportContext.reasons.map((r) => ({
+          title: r.title,
+          why: r.why,
+          line_ids: r.lines,
+        }))
+      : (activeRev?.reasons ?? []).map((r) => ({
+          title: r.title,
+          why: r.why,
+          line_ids: r.cites
+            .map((uid) => uidToNo.get(uid))
+            .filter((n): n is number => n !== undefined),
+        }));
+
+    return {
+      segment: segmentName,
+      lines: lineViews.map((v) => ({
+        id: v.no,
+        kind: v.kind,
+        text: v.text,
+        speaker: v.speaker ?? null,
+        visual: v.visual ?? null,
+      })),
+      reasons,
+    };
+  }, [doc, exportContext, lineViews, personaInfo]);
 
   // Dynamic vertical centering for VersionRail chevrons aligned with active selection
   useLayoutEffect(() => {
@@ -511,7 +545,16 @@ export function ScriptCard({
         })}
       </ol>
 
-      {footer}
+      {scriptSnapshot && scriptIndex !== undefined && (
+        <FeedbackBar
+          logId={logId}
+          scriptIndex={scriptIndex}
+          scriptSnapshot={scriptSnapshot}
+          scriptFormat={exportContext?.scriptFormat ?? 'ugc'}
+          language={exportContext?.language ?? 'en'}
+          segmentName={exportContext?.segment.name ?? personaInfo?.name ?? 'Segment'}
+        />
+      )}
     </article>
   );
 }
