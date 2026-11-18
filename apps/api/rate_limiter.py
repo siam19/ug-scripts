@@ -53,6 +53,9 @@ class SlidingWindowRateLimiter:
 # Default limiter: 15 requests per 60 seconds (1 minute) for regenerations
 regeneration_limiter = SlidingWindowRateLimiter(max_requests=15, window_seconds=60)
 
+# Feedback limiter: 60 requests per 60 seconds (1 minute) for ratings and implicit signals
+feedback_limiter = SlidingWindowRateLimiter(max_requests=60, window_seconds=60)
+
 
 def check_regeneration_rate_limit(
     request: Request,
@@ -70,5 +73,27 @@ def check_regeneration_rate_limit(
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Slow down. Too many requests in 1 minute. Try again later.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+
+def check_feedback_rate_limit(
+    request: Request,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code"),
+) -> None:
+    """
+    FastAPI dependency that enforces rate limiting on script feedback endpoints.
+    Identifies clients by X-API-Key / X-Access-Code and client IP address.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    credential = x_api_key or x_access_code
+    client_key = f"{credential}:{client_ip}" if credential else client_ip
+
+    allowed, retry_after = feedback_limiter.is_allowed(client_key)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many feedback submissions. Please try again shortly.",
             headers={"Retry-After": str(retry_after)},
         )

@@ -20,15 +20,17 @@ os.environ.setdefault("GOOGLE_CLOUD_PROJECT", "test-project")
 os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
 
 from main import app  # noqa: E402
-from rate_limiter import regeneration_limiter  # noqa: E402
+from rate_limiter import feedback_limiter, regeneration_limiter  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
 def reset_rate_limiter():
-    """Resets the in-memory rate limiter before each test."""
+    """Resets the in-memory rate limiters before each test."""
     regeneration_limiter.reset()
+    feedback_limiter.reset()
     yield
     regeneration_limiter.reset()
+    feedback_limiter.reset()
 
 
 @pytest.fixture

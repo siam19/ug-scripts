@@ -12,6 +12,7 @@ This service powers the Billo-style AI UGC script writer:
 import asyncio
 import json
 import os
+import uuid
 from typing import Literal, Sequence, Any
 from pathlib import Path
 from dotenv import load_dotenv
@@ -51,7 +52,7 @@ from grounding import (
     gate_and_repair_segments,
     sanitize_references,
 )
-from rate_limiter import check_regeneration_rate_limit
+from rate_limiter import check_feedback_rate_limit, check_regeneration_rate_limit
 from validation import (
     Issue,
     ask_validated,
@@ -64,6 +65,7 @@ from schemas import (
     AccessRequestCreate,
     AccessRequestResponse,
     Angle,
+    AuthConfigResponse,
     DemoProduct,
     DemoProductsResponse,
     Fact,
@@ -78,7 +80,10 @@ from schemas import (
     ReasonLinesRewriteResponse,
     Script,
     ScriptDraft,
+    ScriptFeedbackRequest,
+    ScriptFeedbackResponse,
     ScriptRewriteRequest,
+    ScriptSignalRequest,
     SectionRegenerateRequest,
     Segment,
     SegmentRegenerateRequest,
@@ -91,6 +96,8 @@ from usage import record_gemini_usage, start_token_tracking
 from prompts import (
     FORMAT_SPECS,
     FormatSpec,
+    PIPELINE_VERSION,
+    PROMPT_VERSIONS,
     REGENERATE_LINE_PROMPT,
     REGENERATE_SEGMENT_PROMPT,
     REPHRASE_LINE_PROMPT,
@@ -144,7 +151,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["POST", "GET", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["X-Token-Usage", "Retry-After"],
+    expose_headers=["X-Token-Usage", "X-Log-Id", "Retry-After"],
 )
 
 # Global GenAI client cache
@@ -524,6 +531,25 @@ async def request_access(
 
 
 @app.get(
+    "/auth/config",
+    response_model=AuthConfigResponse,
+    tags=["Authentication"],
+    summary="Retrieve public OAuth client configuration for frontend integrations",
+)
+async def get_auth_config():
+    """
+    Returns public OAuth configuration (Client ID only).
+    Never reads or exposes any OAuth client secret.
+    """
+    client_id = (
+        os.environ.get("VITE_GOOGLE_CLIENT_ID")
+        or os.environ.get("GOOGLE_CLIENT_ID")
+        or ""
+    )
+    return AuthConfigResponse(google_client_id=client_id.strip())
+
+
+@app.get(
     "/demo-products",
     response_model=DemoProductsResponse,
     tags=["System"],
@@ -576,6 +602,9 @@ async def generate(
     # Create image part for the multi-modal call
     img_part = types.Part.from_bytes(data=image_bytes, mime_type=content_type)
 
+    # Pre-generate log_id before Stage 1 runs so client and audit log share the same ID
+    log_id = str(uuid.uuid4())
+
     # 3. Stage 1: Facts and Segments Extraction
     segs: Segments = await run_stage1(
         name=name,
@@ -600,6 +629,7 @@ async def generate(
 
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     # 5. Background audit log & image archival
     background_tasks.add_task(
@@ -627,6 +657,7 @@ async def generate(
             "script_format": script_format,
         },
         usage=usage,
+        log_id=log_id,
     )
 
     # 6. Build and Return Final Unified Response
@@ -673,6 +704,7 @@ async def generate_stream(
     market_clean = validate_market(market)
     image_bytes, content_type, demo_img_url = await resolve_image_bytes(image, demo_product_id)
     img_part = types.Part.from_bytes(data=image_bytes, mime_type=content_type)
+    log_id = str(uuid.uuid4())
 
     async def event_generator():
         acc = start_token_tracking()
@@ -739,7 +771,7 @@ async def generate_stream(
                 raise
 
             usage = acc.to_dict()
-            yield f"data: {json.dumps({'event': 'done', 'usage': usage})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'usage': usage, 'log_id': log_id})}\n\n"
 
             # Background audit logging
             background_tasks.add_task(
@@ -758,11 +790,12 @@ async def generate_stream(
                 demo_image_url=demo_img_url,
                 request_payload={"name": name, "category": category, "market": market_clean, "language": language},
                 response_payload={
-                    "facts": segs.product_facts,
+                    "facts": [f.model_dump() for f in segs.product_facts],
                     "segments": collected_segments,
                     "scripts": collected_scripts,
                 },
                 usage=usage,
+                log_id=log_id,
             )
 
         except Exception as e:
@@ -776,6 +809,7 @@ async def generate_stream(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "X-Log-Id": log_id,
         },
     )
 
@@ -805,6 +839,7 @@ async def regenerate_segment(
     while maintaining the selected language (English or Bangla).
     """
     acc = start_token_tracking()
+    log_id = str(uuid.uuid4())
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     other_names = "\n".join(
@@ -827,6 +862,7 @@ async def regenerate_segment(
     result = await ask_gemini(prompt=prompt, schema=Segment, stage="regenerate_segment")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     background_tasks.add_task(
         log_generation_task,
@@ -836,6 +872,7 @@ async def regenerate_segment(
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
+        log_id=log_id,
     )
     return result
 
@@ -860,6 +897,7 @@ async def rewrite_script(
     while strictly retaining the requested language and enforcing contiguous reasons.
     """
     acc = start_token_tracking()
+    log_id = str(uuid.uuid4())
     selected_facts, lead_angles = build_segment_script_context(
         payload.segment, payload.facts, payload.angles
     )
@@ -888,6 +926,7 @@ async def rewrite_script(
     result = result_obj.to_script(payload.segment.name) if hasattr(result_obj, "to_script") else result_obj
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     background_tasks.add_task(
         log_generation_task,
@@ -897,6 +936,7 @@ async def rewrite_script(
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
+        log_id=log_id,
     )
     return result
 
@@ -921,6 +961,7 @@ async def rewrite_reason_lines(
     script narrative context and preserving structural roles (hook/cta).
     """
     acc = start_token_tracking()
+    log_id = str(uuid.uuid4())
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     full_script_text = format_script_context(payload.full_script)
@@ -957,6 +998,7 @@ async def rewrite_reason_lines(
     )
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     background_tasks.add_task(
         log_generation_task,
@@ -966,6 +1008,7 @@ async def rewrite_reason_lines(
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
+        log_id=log_id,
     )
     return result
 
@@ -990,6 +1033,7 @@ async def rephrase_line(
     while preserving grammatical subject/object and language settings.
     """
     acc = start_token_tracking()
+    log_id = str(uuid.uuid4())
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     script_context_text = format_script_context(payload.script_context)
@@ -1015,6 +1059,7 @@ async def rephrase_line(
     result = await ask_gemini(prompt=prompt, schema=LineRephraseResponse, stage="rephrase_line")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     background_tasks.add_task(
         log_generation_task,
@@ -1024,6 +1069,7 @@ async def rephrase_line(
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
+        log_id=log_id,
     )
     return result
 
@@ -1048,6 +1094,7 @@ async def regenerate_line(
     (hook, concept, cta) in the chosen language.
     """
     acc = start_token_tracking()
+    log_id = str(uuid.uuid4())
     lang_block = get_language_block(payload.language)
     facts_text = format_facts_text(payload.facts)
     script_context_text = format_script_context(payload.script_context)
@@ -1071,6 +1118,7 @@ async def regenerate_line(
     result = await ask_gemini(prompt=prompt, schema=LineRegenerateResponse, stage="regenerate_line")
     usage = acc.to_dict()
     response.headers["X-Token-Usage"] = json.dumps(usage)
+    response.headers["X-Log-Id"] = log_id
 
     background_tasks.add_task(
         log_generation_task,
@@ -1080,6 +1128,7 @@ async def regenerate_line(
         request_payload=payload.model_dump(),
         response_payload=result.model_dump(),
         usage=usage,
+        log_id=log_id,
     )
     return result
 
@@ -1108,6 +1157,7 @@ async def regenerate_section(
     """
     facts_text = format_facts_text(payload.facts)
     lang_block = get_language_block(payload.language)
+    log_id = str(uuid.uuid4())
 
     async def event_generator():
         acc = start_token_tracking()
@@ -1208,7 +1258,7 @@ async def regenerate_section(
                 raise
 
             usage = acc.to_dict()
-            yield f"data: {json.dumps({'event': 'done', 'usage': usage})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'usage': usage, 'log_id': log_id})}\n\n"
 
             # Background audit logging
             background_tasks.add_task(
@@ -1223,11 +1273,12 @@ async def regenerate_section(
                 },
                 request_payload=payload.model_dump(),
                 response_payload={
-                    "facts": payload.facts,
+                    "facts": [f.model_dump() for f in payload.facts],
                     "segments": collected_segments,
                     "scripts": collected_scripts,
                 },
                 usage=usage,
+                log_id=log_id,
             )
 
         except Exception as e:
@@ -1241,7 +1292,110 @@ async def regenerate_section(
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
+            "X-Log-Id": log_id,
         },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sprint 7: Script Ratings & Implicit Signals (Phase 3)
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/feedback",
+    response_model=ScriptFeedbackResponse,
+    tags=["Feedback"],
+    summary="Submit or update a user rating, tags, and comment for a generated script",
+    dependencies=[Depends(check_feedback_rate_limit)],
+)
+async def submit_feedback(
+    payload: ScriptFeedbackRequest,
+    x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
+):
+    """
+    Idempotently upserts explicit script feedback in Firestore `script_feedback/{log_id}_{script_index}`.
+    Uses merge=True so implicit signal counters on the same document are preserved.
+    """
+    feedback_id = f"{payload.log_id}_{payload.script_index}"
+    doc_data = {
+        "feedback_id": feedback_id,
+        "log_id": payload.log_id,
+        "script_index": payload.script_index,
+        "rating": payload.rating,
+        "tags": list(payload.tags),
+        "comment": payload.comment.strip() if payload.comment else None,
+        "script_snapshot": payload.script_snapshot.model_dump(),
+        "script_format": payload.script_format,
+        "language": payload.language,
+        "segment_name": payload.segment_name,
+        "access_code": auth.get("access_code", "ANONYMOUS"),
+        "pipeline_version": PIPELINE_VERSION,
+        "prompt_versions": PROMPT_VERSIONS,
+        "updated_at": firestore.SERVER_TIMESTAMP,
+    }
+
+    stored = True
+    try:
+        db = get_firestore_client()
+        doc_ref = db.collection("script_feedback").document(feedback_id)
+        await doc_ref.set(doc_data, merge=True)
+    except Exception as e:
+        stored = False
+        print(f"Warning: Failed to save script feedback in Firestore: {e}")
+
+    return ScriptFeedbackResponse(
+        success=True,
+        feedback_id=feedback_id,
+        stored=stored,
+    )
+
+
+@app.post(
+    "/feedback/signal",
+    response_model=ScriptFeedbackResponse,
+    tags=["Feedback"],
+    summary="Record an implicit quality signal (copy, save, regenerate) for a generated script",
+    dependencies=[Depends(check_feedback_rate_limit)],
+)
+async def submit_feedback_signal(
+    payload: ScriptSignalRequest,
+    x_api_key: str | None = Header(None, alias="X-API-Key", description="API Key for request authorization"),
+    x_access_code: str | None = Header(None, alias="X-Access-Code", description="Demo access code"),
+    auth: dict[str, Any] = Depends(require_auth),
+):
+    """
+    Atomically increments `signals.<signal>` on Firestore `script_feedback/{log_id}_{script_index}`
+    with merge=True, creating the document if no explicit rating exists yet.
+    """
+    feedback_id = f"{payload.log_id}_{payload.script_index}"
+    stored = True
+    try:
+        db = get_firestore_client()
+        doc_ref = db.collection("script_feedback").document(feedback_id)
+        await doc_ref.set(
+            {
+                "feedback_id": feedback_id,
+                "log_id": payload.log_id,
+                "script_index": payload.script_index,
+                "access_code": auth.get("access_code", "ANONYMOUS"),
+                "signals": {
+                    payload.signal: firestore.Increment(1),
+                },
+                "updated_at": firestore.SERVER_TIMESTAMP,
+            },
+            merge=True,
+        )
+    except Exception as e:
+        stored = False
+        print(f"Warning: Failed to save feedback signal in Firestore: {e}")
+
+    return ScriptFeedbackResponse(
+        success=True,
+        feedback_id=feedback_id,
+        stored=stored,
     )
 
 

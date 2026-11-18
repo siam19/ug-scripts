@@ -33,6 +33,14 @@ export type AccessRequestCreate = components['schemas']['AccessRequestCreate'];
 export type AccessRequestResponse = components['schemas']['AccessRequestResponse'];
 export type DemoProduct = components['schemas']['DemoProduct'];
 export type DemoProductsResponse = components['schemas']['DemoProductsResponse'];
+
+// Sprint 7 OAuth Config & Script Feedback Types
+export type AuthConfigResponse = components['schemas']['AuthConfigResponse'];
+export type ScriptFeedbackRequest = components['schemas']['ScriptFeedbackRequest'];
+export type ScriptFeedbackResponse = components['schemas']['ScriptFeedbackResponse'];
+export type ScriptSignalRequest = components['schemas']['ScriptSignalRequest'];
+export type FeedbackTag = NonNullable<ScriptFeedbackRequest['tags']>[number];
+export type FeedbackSignal = ScriptSignalRequest['signal'];
 export interface TokenUsage {
   prompt_tokens: number;
   candidates_tokens: number;
