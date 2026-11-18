@@ -9,6 +9,7 @@ import { ErrorBanner } from './components/ErrorBanner';
 import { SavedScriptsDrawer } from './components/SavedScriptsDrawer';
 import { AccessGateModal } from './components/AccessGateModal';
 import { TokenMeter } from './components/TokenMeter';
+import { BrandLogo } from './components/BrandLogo';
 import { useGenerateScript } from './hooks/useGenerateScript';
 import { useSavedScripts } from './state/saved-scripts';
 import { useTokenTracker } from './hooks/useTokenTracker';
@@ -59,7 +60,7 @@ export default function App() {
     <div className="shell">
       <header className="masthead">
         <div className="masthead-brand">
-          <span className="rec-dot" aria-hidden="true" />
+          <BrandLogo size={24} className="masthead-logo" />
           <span className="masthead-title">Script Assistant</span>
         </div>
 
@@ -136,6 +137,7 @@ export default function App() {
             isStreaming={status === 'streaming'}
             meta={{
               name: values.name,
+              category: values.category,
               market: values.market,
               language: values.language,
               script_format: values.script_format,

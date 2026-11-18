@@ -1,0 +1,70 @@
+// apps/web/src/components/BrandLogo.tsx
+import { useId } from 'react';
+
+interface BrandLogoProps {
+  size?: number;
+  variant?: 'badge' | 'mark';
+  pulse?: boolean;
+  className?: string;
+  decorative?: boolean;
+}
+
+/**
+ * Inline brand mark derived from docs/ug-scripts-logo-v1.svg.
+ * Use `variant="badge"` on light/neutral surfaces (masthead, skeleton card)
+ * and `variant="mark"` inside dark buttons where `currentColor` contrasts.
+ */
+export function BrandLogo({
+  size = 24,
+  variant = 'badge',
+  pulse = false,
+  className = '',
+  decorative = true,
+}: BrandLogoProps) {
+  const clipId = useId();
+  const classes = [
+    'brand-logo',
+    variant === 'badge' ? 'is-badge' : 'is-mark',
+    pulse ? 'is-pulsing' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const inkColor = variant === 'badge' ? '#14181a' : 'currentColor';
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 460 460"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={classes}
+      aria-hidden={decorative ? true : undefined}
+      role={decorative ? undefined : 'img'}
+      aria-label={decorative ? undefined : 'UG-Scripts logo'}
+      focusable="false"
+    >
+      <g clipPath={`url(#${clipId})`}>
+        {variant === 'badge' && <rect width="460" height="460" rx="92" fill="#ffffff" />}
+        <path
+          d="M128.104 115.692H82.6367C72.3643 115.692 62.5126 119.225 55.2489 125.514C47.9853 131.802 43.9046 140.332 43.9046 149.225V383.954C43.9046 392.848 47.9853 401.377 55.2489 407.666C62.5126 413.954 72.3643 417.487 82.6367 417.487H293.618C303.891 417.487 313.742 413.954 321.006 407.666C328.27 401.377 332.35 392.848 332.35 383.954V335.53"
+          stroke={inkColor}
+          strokeWidth="39"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path
+          d="M192.675 347.498L210.965 247.261L110.419 268.069L94.1577 175.125L198.861 156.36L150.087 61.3088L233.258 18.0926L278.217 110.402L346.052 35.3775L415.109 99.6531L342.438 175.768L435.971 219.997L393.766 305.882L301.606 258.861L285.751 362.896L192.675 347.498Z"
+          fill={inkColor}
+        />
+      </g>
+      <defs>
+        <clipPath id={clipId}>
+          <rect width="460" height="460" rx={variant === 'badge' ? '92' : '0'} fill="#ffffff" />
+        </clipPath>
+      </defs>
+    </svg>
+  );
+}

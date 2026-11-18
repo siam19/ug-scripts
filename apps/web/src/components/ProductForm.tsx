@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, FormEvent } from 'react';
 import type { DemoProduct } from 'api-types';
+import { BrandLogo } from './BrandLogo';
 import { DemoProductPicker } from './DemoProductPicker';
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -371,7 +372,7 @@ export function ProductForm({ values, onChange, onSubmit, submitting }: Props) {
             : 'Takes 10 to 20 seconds'}
         </p>
         <button type="submit" className="btn btn-primary" disabled={!canSubmit}>
-          <span className="rec-dot" aria-hidden="true" />
+          <BrandLogo size={18} variant="mark" pulse={submitting} />
           {submitting
             ? 'Generating…'
             : values.script_format === 'commercial_30s'

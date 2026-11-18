@@ -4,10 +4,17 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCopy,
+  IconDownload,
+  IconExternalLink,
+  IconFileText,
+  IconLoader2,
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
+import { useGoogleDocsExport } from '../hooks/useGoogleDocsExport';
+import type { ExportScriptPayload, GoogleDocExportResult } from '../lib/googleDocs';
 import type { SavedScript } from '../state/saved-scripts';
+import { countWords, formatTime, SECONDS_PER_WORD } from '../state/script-tree';
 
 interface Props {
   open: boolean;
@@ -15,6 +22,31 @@ interface Props {
   onClose: () => void;
   onRemove: (id: string) => void;
   onCopyNotice?: () => void;
+}
+
+function savedScriptToExportPayload(script: SavedScript): ExportScriptPayload {
+  let cursorTime = 0;
+  const lines = script.lines.map((line, idx) => {
+    const words = countWords(line.text);
+    const duration = Math.max(words * SECONDS_PER_WORD, 0.8);
+    const time = formatTime(cursorTime);
+    cursorTime += duration;
+    return {
+      no: idx + 1,
+      kind: line.kind,
+      time,
+      text: line.text,
+    };
+  });
+
+  return {
+    product: script.product,
+    market: script.market,
+    language: script.language,
+    segment: script.segment,
+    lines,
+    reasons: script.reasons,
+  };
 }
 
 export function SavedScriptsDrawer({
@@ -26,6 +58,9 @@ export function SavedScriptsDrawer({
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [exportedDocs, setExportedDocs] = useState<Record<string, GoogleDocExportResult>>({});
+  const [exportErrors, setExportErrors] = useState<Record<string, string>>({});
+  const { exporting, exportingKey, exportToDocs, downloadMarkdown } = useGoogleDocsExport();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -49,6 +84,27 @@ export function SavedScriptsDrawer({
     } catch {
       // fallback
     }
+  }
+
+  async function handleExportGoogleDocs(script: SavedScript) {
+    setExportErrors((prev) => {
+      const next = { ...prev };
+      delete next[script.id];
+      return next;
+    });
+    try {
+      const result = await exportToDocs(savedScriptToExportPayload(script), script.id);
+      if (result) {
+        setExportedDocs((prev) => ({ ...prev, [script.id]: result }));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export to Google Docs.';
+      setExportErrors((prev) => ({ ...prev, [script.id]: msg }));
+    }
+  }
+
+  function handleDownloadMarkdown(script: SavedScript) {
+    downloadMarkdown(savedScriptToExportPayload(script));
   }
 
   return (
@@ -148,15 +204,7 @@ export function SavedScriptsDrawer({
                         ))}
                       </div>
 
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'flex-end',
-                          gap: 8,
-                          marginTop: 8,
-                        }}
-                      >
+                      <div className="saved-item-actions">
                         <button
                           type="button"
                           className="btn btn-sm btn-quiet"
@@ -164,6 +212,34 @@ export function SavedScriptsDrawer({
                         >
                           <IconTrash size={14} aria-hidden="true" />
                           <span>Remove</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-quiet"
+                          onClick={() => handleDownloadMarkdown(script)}
+                          title="Download script as Markdown (.md)"
+                        >
+                          <IconDownload size={14} aria-hidden="true" />
+                          <span>.md</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-quiet"
+                          disabled={exporting}
+                          onClick={() => handleExportGoogleDocs(script)}
+                          title="Export script to Google Docs"
+                        >
+                          {exporting && exportingKey === script.id ? (
+                            <>
+                              <IconLoader2 size={14} className="export-spinner" aria-hidden="true" />
+                              <span>Exporting…</span>
+                            </>
+                          ) : (
+                            <>
+                              <IconFileText size={14} aria-hidden="true" />
+                              <span>Google Docs</span>
+                            </>
+                          )}
                         </button>
                         <button
                           type="button"
@@ -183,6 +259,41 @@ export function SavedScriptsDrawer({
                           )}
                         </button>
                       </div>
+
+                      {exportedDocs[script.id] && (
+                        <div className="saved-export-status is-success" role="status">
+                          <span>Exported to Google Docs</span>
+                          <a
+                            href={exportedDocs[script.id].url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="saved-export-link"
+                          >
+                            <span>Open Doc</span>
+                            <IconExternalLink size={13} aria-hidden="true" />
+                          </a>
+                        </div>
+                      )}
+
+                      {exportErrors[script.id] && (
+                        <div className="saved-export-status is-error" role="alert">
+                          <span>{exportErrors[script.id]}</span>
+                          <button
+                            type="button"
+                            className="saved-export-dismiss"
+                            aria-label="Dismiss export error"
+                            onClick={() =>
+                              setExportErrors((prev) => {
+                                const next = { ...prev };
+                                delete next[script.id];
+                                return next;
+                              })
+                            }
+                          >
+                            <IconX size={13} aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

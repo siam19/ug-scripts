@@ -21,6 +21,7 @@ import { generateUid } from '../state/uid';
 import { INITIAL_WORKSPACE, workspaceReducer } from '../state/workspace';
 import { FactChips } from './FactChips';
 import { AngleChips } from './AngleChips';
+import { BrandLogo } from './BrandLogo';
 import { ReasonList } from './ReasonList';
 import type { ReasonDisplayItem } from './ReasonList';
 import { ScriptCard } from './ScriptCard';
@@ -35,7 +36,13 @@ import type { ScriptFormat } from 'api-types';
 interface Props {
   data: ProgressiveGenerateResponse;
   isStreaming?: boolean;
-  meta?: { name: string; market: string; language: 'en' | 'bn'; script_format?: ScriptFormat };
+  meta?: {
+    name: string;
+    category?: string;
+    market: string;
+    language: 'en' | 'bn';
+    script_format?: ScriptFormat;
+  };
 }
 
 export function ResultsView({
@@ -133,7 +140,7 @@ export function ResultsView({
         },
       });
     }
-  }, [data.facts, data.segments, meta]);
+  }, [data.angles, data.facts, data.script_format, data.segments, meta]);
 
   // Feed streamed scripts progressively into workspace slots
   const ingestedScripts = useRef<Set<number>>(new Set());
@@ -978,6 +985,31 @@ export function ResultsView({
                     onPrev: () => handleCyclePersona(-1),
                     onNext: () => handleCyclePersona(1),
                   }}
+                  exportContext={
+                    activeSlot
+                      ? {
+                          product: workspace.meta.name || meta.name || 'Product',
+                          category: meta.category,
+                          market: workspace.meta.market || meta.market || 'Global',
+                          language: workspace.meta.language || meta.language || 'en',
+                          scriptFormat:
+                            workspace.meta.script_format ||
+                            meta.script_format ||
+                            data.script_format ||
+                            'ugc',
+                          productAppearance: data.product_appearance,
+                          facts: workspace.facts.map((f) => f.text),
+                          angles: workspace.angles,
+                          segment: activeSlot.segment,
+                          reasons: reasonDisplayItems.map((r) => ({
+                            title: r.title,
+                            why: r.why,
+                            lines: r.refs.map((ref) => ref.no),
+                          })),
+                        }
+                      : undefined
+                  }
+                  onNotify={addToast}
                   onLineHover={setHoverLineUid}
                   onLineSelect={(lineUid) =>
                     lineUid
@@ -1030,7 +1062,7 @@ export function ResultsView({
             ) : isStreaming ? (
               <div className="panel script-skeleton-card">
                 <div className="script-skeleton-head">
-                  <span className="rec-dot" aria-hidden="true" />
+                  <BrandLogo size={22} pulse />
                   <h3>Writing script for {activeSlot?.segment?.name ?? 'segment'}…</h3>
                 </div>
                 <p className="hint">Crafting hook, timestamped lines, and psychological reasoning…</p>
