@@ -4,7 +4,7 @@ import {
   IconChevronDown,
   IconChevronUp,
   IconCopy,
-  IconDownload,
+  // IconDownload,
   IconExternalLink,
   IconFileText,
   IconLoader2,
@@ -60,7 +60,7 @@ export function SavedScriptsDrawer({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [exportedDocs, setExportedDocs] = useState<Record<string, GoogleDocExportResult>>({});
   const [exportErrors, setExportErrors] = useState<Record<string, string>>({});
-  const { exporting, exportingKey, exportToDocs, downloadMarkdown } = useGoogleDocsExport();
+  const { exporting, exportingKey, exportToDocs /* , downloadMarkdown */ } = useGoogleDocsExport();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -75,7 +75,12 @@ export function SavedScriptsDrawer({
   if (!open) return null;
 
   async function handleCopy(script: SavedScript) {
-    const text = script.lines.map((l) => l.text).join('\n\n');
+    const text = script.lines
+      .map((l) => {
+        const visual = (l as { visual?: string | null }).visual?.trim();
+        return visual ? `Visual Direction: ${visual}\n${l.text}` : l.text;
+      })
+      .join('\n\n');
     try {
       await navigator.clipboard.writeText(text);
       setCopiedId(script.id);
@@ -103,9 +108,11 @@ export function SavedScriptsDrawer({
     }
   }
 
+  /*
   function handleDownloadMarkdown(script: SavedScript) {
     downloadMarkdown(savedScriptToExportPayload(script));
   }
+  */
 
   return (
     <>
@@ -213,6 +220,7 @@ export function SavedScriptsDrawer({
                           <IconTrash size={14} aria-hidden="true" />
                           <span>Remove</span>
                         </button>
+                        {/*
                         <button
                           type="button"
                           className="btn btn-sm btn-quiet"
@@ -222,6 +230,7 @@ export function SavedScriptsDrawer({
                           <IconDownload size={14} aria-hidden="true" />
                           <span>.md</span>
                         </button>
+                        */}
                         <button
                           type="button"
                           className="btn btn-sm btn-quiet"

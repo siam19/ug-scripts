@@ -248,20 +248,6 @@ function textWithBreaks(text: string): string {
   return escapeHtml(text).replace(/\r?\n/g, '<br />');
 }
 
-const KIND_LABELS: Record<LineKind, string> = {
-  hook: 'Hook',
-  concept: 'Concept',
-  cta: 'Call to Action',
-};
-
-const ANGLE_TYPE_LABELS: Record<string, string> = {
-  emotion: 'Emotional Angle',
-  desire: 'Desire / Aspiration',
-  objection: 'Objection Handler',
-  pain_point: 'Pain Point',
-  social_proof: 'Social Proof',
-};
-
 function formatLanguageLabel(lang: 'en' | 'bn'): string {
   return lang === 'bn' ? 'Bangla (বাংলা)' : 'English';
 }
@@ -274,121 +260,110 @@ export function buildDocumentTitle(payload: ExportScriptPayload): string {
   return `${payload.product} — ${payload.segment.name} (Script)`;
 }
 
+function renderMetaRow(label: string, valueHtml: string, isLast = false): string {
+  const borderBottom = isLast ? 'none' : '1px solid #e4e9e6';
+  return `
+    <tr>
+      <td style="width:135pt;padding:6pt 10pt;background-color:#f4f7f5;border-bottom:${borderBottom};font-size:9.5pt;font-weight:700;color:#444d51;vertical-align:top;">
+        ${escapeHtml(label)}
+      </td>
+      <td style="padding:6pt 10pt;background-color:#ffffff;border-bottom:${borderBottom};font-size:10.5pt;color:#14181a;vertical-align:top;">
+        ${valueHtml}
+      </td>
+    </tr>
+  `;
+}
+
 /**
- * Builds clean, UTF-8 / Bengali-safe HTML for Drive's HTML-to-Google-Doc import.
+ * Builds clean, UTF-8 / Bengali-safe HTML structured with tables for faithful
+ * Google Docs import aesthetics.
  */
 export function buildGoogleDocHtml(payload: ExportScriptPayload): string {
   const title = buildDocumentTitle(payload);
   const langAttr = payload.language === 'bn' ? 'bn' : 'en';
   const fontStack = "'Hind Siliguri', 'Noto Sans Bengali', Arial, sans-serif";
 
-  const productMetaRows = [
-    `<p><strong>Product:</strong> ${escapeHtml(payload.product)}</p>`,
-    payload.category ? `<p><strong>Category:</strong> ${escapeHtml(payload.category)}</p>` : '',
-    `<p><strong>Target Market:</strong> ${escapeHtml(payload.market)}</p>`,
-    `<p><strong>Language:</strong> ${escapeHtml(formatLanguageLabel(payload.language))}</p>`,
-    `<p><strong>Format:</strong> ${escapeHtml(formatScriptTypeLabel(payload.scriptFormat))}</p>`,
-    payload.productAppearance
-      ? `<p><strong>Visual Appearance:</strong> ${textWithBreaks(payload.productAppearance)}</p>`
-      : '',
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const productRows: Array<[string, string]> = [
+    ['Product', escapeHtml(payload.product)],
+    ...(payload.category ? [['Category', escapeHtml(payload.category)] as [string, string]] : []),
+    ['Target Market', escapeHtml(payload.market)],
+    ['Language', escapeHtml(formatLanguageLabel(payload.language))],
+    ['Format', escapeHtml(formatScriptTypeLabel(payload.scriptFormat))],
+  ];
 
-  const factsSection =
-    payload.facts && payload.facts.length > 0
-      ? `
-        <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;margin-top:18pt;">
-          Verified Facts
-        </h2>
-        <ul style="margin:6pt 0 12pt 16pt;padding:0;">
-          ${payload.facts
-            .map((fact) => `<li style="margin-bottom:4pt;">${textWithBreaks(fact)}</li>`)
-            .join('\n')}
-        </ul>
-      `
-      : '';
+  const productMetaTable = `
+    <table width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border:1px solid #d7dfda;margin-bottom:14pt;">
+      ${productRows
+        .map(([label, val], idx) => renderMetaRow(label, val, idx === productRows.length - 1))
+        .join('\n')}
+    </table>
+  `;
 
-  const anglesSection =
-    payload.angles && payload.angles.length > 0
-      ? `
-        <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;margin-top:18pt;">
-          Creative Angles
-        </h2>
-        <ul style="margin:6pt 0 12pt 16pt;padding:0;">
-          ${payload.angles
-            .map((angle) => {
-              const typeLabel = ANGLE_TYPE_LABELS[angle.type] ?? angle.type;
-              return `<li style="margin-bottom:5pt;"><strong>#${angle.id} (${escapeHtml(typeLabel)}):</strong> ${textWithBreaks(angle.text)}</li>`;
-            })
-            .join('\n')}
-        </ul>
-      `
-      : '';
-
-  const leadAnglesHtml =
-    payload.segment.lead_angle_ids && payload.segment.lead_angle_ids.length > 0
-      ? `<p><strong>Lead Angles:</strong> ${payload.segment.lead_angle_ids.map((id) => `#${id}`).join(', ')}</p>`
-      : '';
+  const personaRows: Array<[string, string]> = [
+    ['Segment', escapeHtml(payload.segment.name)],
+    ['Who They Are', textWithBreaks(payload.segment.who)],
+  ];
 
   const personaSection = `
-    <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;margin-top:18pt;">
+    <h2 style="font-size:13pt;font-weight:700;color:#14181a;border-bottom:1.5pt solid #2a5c45;padding-bottom:4pt;margin:18pt 0 10pt 0;">
       Customer Segment Persona
     </h2>
-    <p><strong>Segment:</strong> ${escapeHtml(payload.segment.name)}</p>
-    <p><strong>Who They Are:</strong> ${textWithBreaks(payload.segment.who)}</p>
-    <p><strong>Recommended Platforms:</strong> ${escapeHtml(payload.segment.platforms.join(', '))}</p>
-    ${leadAnglesHtml}
-    <blockquote style="margin:8pt 0 12pt 0;padding:8pt 12pt;border-left:3pt solid #14181a;background-color:#f4f6f5;color:#14181a;">
-      <em>In their words:</em> &ldquo;${textWithBreaks(payload.segment.pain_point)}&rdquo;
-    </blockquote>
+    <table width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;border:1px solid #d7dfda;margin-bottom:10pt;">
+      ${personaRows
+        .map(([label, val], idx) => renderMetaRow(label, val, idx === personaRows.length - 1))
+        .join('\n')}
+    </table>
+    <table width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin-bottom:14pt;">
+      <tr>
+        <td style="padding:9pt 13pt;background-color:#f4f7f5;border-left:3pt solid #2a5c45;font-size:10.5pt;color:#1f2623;">
+          <span style="font-size:9pt;font-weight:700;color:#2a5c45;text-transform:uppercase;letter-spacing:0.4pt;">Pain Point</span><br />
+          <em>&ldquo;${textWithBreaks(payload.segment.pain_point)}&rdquo;</em>
+        </td>
+      </tr>
+    </table>
   `;
 
   const scriptLinesHtml = payload.lines
-    .map((line) => {
-      const kindLabel = KIND_LABELS[line.kind] ?? line.kind;
-      const timeStr = line.time ? ` · ${escapeHtml(line.time)}` : '';
-      const speakerStr = line.speaker ? ` · Speaker: ${escapeHtml(line.speaker)}` : '';
-      const visualHtml = line.visual
-        ? `<p style="margin:3pt 0 3pt 0;color:#444d51;font-size:10pt;"><strong>Visual Direction:</strong> ${textWithBreaks(line.visual)}</p>`
+    .map((line, idx) => {
+      const lineNum = line.no ?? idx + 1;
+      const speakerText = line.speaker?.trim();
+      const visualText = line.visual?.trim();
+      const hasMeta = Boolean(speakerText || visualText);
+
+      const directionBoxHtml = hasMeta
+        ? `
+          <table width="100%" cellspacing="0" cellpadding="0" style="width:100%;border-collapse:collapse;margin:0 0 6pt 0;">
+            <tr>
+              <td style="padding:7pt 12pt;background-color:#f4f7f5;border:none;border-left:2.5pt solid #2a5c45;">
+                ${
+                  speakerText
+                    ? `<p style="margin:0${visualText ? ' 0 2pt 0' : ''};font-size:9.5pt;color:#14181a;">
+                         <span style="font-weight:700;color:#2a5c45;text-transform:uppercase;letter-spacing:0.4pt;">Speaker:</span>
+                         <span style="font-weight:600;color:#14181a;"> ${escapeHtml(speakerText)}</span>
+                       </p>`
+                    : ''
+                }
+                ${
+                  visualText
+                    ? `<p style="margin:0;font-size:9.5pt;color:#444d51;line-height:1.45;">
+                         <strong style="color:#14181a;">Visual Direction:</strong> <em>${textWithBreaks(visualText)}</em>
+                       </p>`
+                    : ''
+                }
+              </td>
+            </tr>
+          </table>
+        `
         : '';
 
       return `
-        <div style="margin-bottom:10pt;padding:8pt 10pt;border:1px solid #d3dad5;border-radius:4pt;">
-          <p style="margin:0 0 4pt 0;font-size:10pt;color:#444d51;">
-            <strong>${line.no}. [${escapeHtml(kindLabel.toUpperCase())}]</strong>${timeStr}${speakerStr}
-          </p>
-          ${visualHtml}
-          <p style="margin:0;font-size:11.5pt;color:#14181a;">${textWithBreaks(line.text)}</p>
-        </div>
+        ${directionBoxHtml}
+        <p style="margin:5pt 0 14pt 0;font-size:11.5pt;line-height:1.65;color:#14181a;">
+          <strong style="color:#2a5c45;">${lineNum}.</strong> ${textWithBreaks(line.text)}
+        </p>
       `;
     })
     .join('\n');
-
-  const reasonsSection =
-    payload.reasons.length > 0
-      ? `
-        <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;margin-top:18pt;">
-          Marketing Rationales
-        </h2>
-        <ol style="margin:6pt 0 12pt 16pt;padding:0;">
-          ${payload.reasons
-            .map((r) => {
-              const cites =
-                r.lines.length > 0
-                  ? `<em>Cited lines: ${r.lines.map((n) => `Line ${n}`).join(', ')}</em>`
-                  : '<em>No lines cited</em>';
-              return `
-                <li style="margin-bottom:8pt;">
-                  <p style="margin:0 0 2pt 0;"><strong>${escapeHtml(r.title)}</strong> (${cites})</p>
-                  <p style="margin:0;color:#2c3336;">${textWithBreaks(r.why)}</p>
-                </li>
-              `;
-            })
-            .join('\n')}
-        </ol>
-      `
-      : '';
 
   return `<!DOCTYPE html>
 <html lang="${langAttr}">
@@ -396,27 +371,23 @@ export function buildGoogleDocHtml(payload: ExportScriptPayload): string {
   <meta charset="UTF-8" />
   <title>${escapeHtml(title)}</title>
 </head>
-<body style="font-family:${fontStack};color:#14181a;line-height:1.5;font-size:11pt;max-width:680pt;">
-  <h1 style="font-size:20pt;margin:0 0 4pt 0;color:#14181a;">${escapeHtml(title)}</h1>
-  <p style="margin:0 0 14pt 0;color:#444d51;font-size:10pt;">
-    Exported from UG-Scripts · ${escapeHtml(payload.market)} · ${escapeHtml(formatLanguageLabel(payload.language))}
+<body style="font-family:${fontStack};color:#14181a;line-height:1.5;font-size:11pt;max-width:660pt;">
+  <h1 style="font-size:20pt;font-weight:700;margin:0 0 4pt 0;color:#14181a;">${escapeHtml(title)}</h1>
+  <p style="margin:0 0 16pt 0;color:#5c6662;font-size:9.5pt;">
+    UG-Scripts &middot; ${escapeHtml(payload.market)} &middot; ${escapeHtml(formatLanguageLabel(payload.language))} &middot; ${escapeHtml(formatScriptTypeLabel(payload.scriptFormat))}
   </p>
 
-  <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;">
+  <h2 style="font-size:13pt;font-weight:700;color:#14181a;border-bottom:1.5pt solid #2a5c45;padding-bottom:4pt;margin:0 0 10pt 0;">
     Product Info
   </h2>
-  ${productMetaRows}
+  ${productMetaTable}
 
-  ${factsSection}
-  ${anglesSection}
   ${personaSection}
 
-  <h2 style="font-size:14pt;color:#14181a;border-bottom:1px solid #d3dad5;padding-bottom:4pt;margin-top:18pt;">
+  <h2 style="font-size:13pt;font-weight:700;color:#14181a;border-bottom:1.5pt solid #2a5c45;padding-bottom:4pt;margin:18pt 0 10pt 0;">
     Script
   </h2>
   ${scriptLinesHtml}
-
-  ${reasonsSection}
 </body>
 </html>`;
 }
@@ -431,67 +402,37 @@ export function buildMarkdownDocument(payload: ExportScriptPayload): string {
   parts.push('## Product Info');
   parts.push(`- **Product:** ${payload.product}`);
   if (payload.category) parts.push(`- **Category:** ${payload.category}`);
-  parts.push(`- **Market:** ${payload.market}`);
+  parts.push(`- **Target Market:** ${payload.market}`);
   parts.push(`- **Language:** ${formatLanguageLabel(payload.language)}`);
   parts.push(`- **Format:** ${formatScriptTypeLabel(payload.scriptFormat)}`);
-  if (payload.productAppearance) {
-    parts.push(`- **Visual Appearance:** ${payload.productAppearance}`);
-  }
-
-  if (payload.facts && payload.facts.length > 0) {
-    parts.push('');
-    parts.push('## Verified Facts');
-    for (const fact of payload.facts) {
-      parts.push(`- ${fact}`);
-    }
-  }
-
-  if (payload.angles && payload.angles.length > 0) {
-    parts.push('');
-    parts.push('## Creative Angles');
-    for (const angle of payload.angles) {
-      const typeLabel = ANGLE_TYPE_LABELS[angle.type] ?? angle.type;
-      parts.push(`- **#${angle.id} (${typeLabel}):** ${angle.text}`);
-    }
-  }
 
   parts.push('');
   parts.push('## Customer Segment Persona');
   parts.push(`- **Segment:** ${payload.segment.name}`);
   parts.push(`- **Who They Are:** ${payload.segment.who}`);
-  parts.push(`- **Platforms:** ${payload.segment.platforms.join(', ')}`);
-  if (payload.segment.lead_angle_ids && payload.segment.lead_angle_ids.length > 0) {
-    parts.push(
-      `- **Lead Angles:** ${payload.segment.lead_angle_ids.map((id) => `#${id}`).join(', ')}`,
-    );
-  }
   parts.push('');
   parts.push(`> "${payload.segment.pain_point}"`);
 
   parts.push('');
   parts.push('## Script');
-  for (const line of payload.lines) {
-    const kindLabel = (KIND_LABELS[line.kind] ?? line.kind).toUpperCase();
-    const timeSuffix = line.time ? ` (${line.time})` : '';
-    parts.push(`${line.no}. **[${kindLabel}]${timeSuffix}**`);
-    if (line.visual) {
-      parts.push(`   *Visual Direction:* ${line.visual}`);
+  payload.lines.forEach((line, idx) => {
+    const lineNum = line.no ?? idx + 1;
+    const speakerText = line.speaker?.trim();
+    const visualText = line.visual?.trim();
+    if (speakerText || visualText) {
+      if (speakerText) {
+        parts.push(`> **Speaker:** ${speakerText}`);
+      }
+      if (visualText) {
+        parts.push(`> *Visual Direction:* ${visualText}`);
+      }
+      parts.push('');
     }
-    parts.push(`   ${line.text}`);
-    parts.push('');
-  }
-
-  if (payload.reasons.length > 0) {
-    parts.push('## Marketing Rationales');
-    payload.reasons.forEach((reason, idx) => {
-      const cites =
-        reason.lines.length > 0
-          ? `Cited lines: ${reason.lines.map((n) => `Line ${n}`).join(', ')}`
-          : 'No lines cited';
-      parts.push(`${idx + 1}. **${reason.title}** *(${cites})*`);
-      parts.push(`   ${reason.why}`);
-    });
-  }
+    parts.push(`${lineNum}. ${line.text}`);
+    if (idx < payload.lines.length - 1) {
+      parts.push('');
+    }
+  });
 
   return parts.join('\n').trimEnd() + '\n';
 }

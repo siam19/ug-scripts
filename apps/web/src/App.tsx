@@ -102,7 +102,7 @@ export default function App() {
         <h1>UG-Scripts</h1>
         <p>
           Describe the product, add its photo, and get three customer segments with a
-          phone-ready UGC ad script for each.
+          phone-ready UGC or commercial ad script for each buyer persona.
         </p>
       </section>
 

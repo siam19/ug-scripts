@@ -5,7 +5,7 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconCopy,
-  IconDownload,
+  // IconDownload,
   IconExternalLink,
   IconFileText,
   IconLoader2,
@@ -110,7 +110,7 @@ export function ScriptCard({
   const copyTimer = useRef<number | null>(null);
   const cardRef = useRef<HTMLElement>(null);
   const [railTopY, setRailTopY] = useState<number | null>(null);
-  const { exporting, exportToDocs, downloadMarkdown } = useGoogleDocsExport();
+  const { exporting, exportToDocs /* , downloadMarkdown */ } = useGoogleDocsExport();
   const [lastExport, setLastExport] = useState<{
     doc: ScriptDoc;
     result: GoogleDocExportResult;
@@ -305,7 +305,12 @@ export function ScriptCard({
   }, [selectedLineUid, onLineSelect]);
 
   async function handleCopy() {
-    const text = lineViews.map((r) => r.text).join('\n\n');
+    const text = lineViews
+      .map((r) => {
+        const visual = r.visual?.trim();
+        return visual ? `Visual Direction: ${visual}\n${r.text}` : r.text;
+      })
+      .join('\n\n');
     await copyToClipboard(text);
     onCopyScript?.();
     setCopied(true);
@@ -347,12 +352,14 @@ export function ScriptCard({
     }
   }
 
+  /*
   function handleDownloadMarkdown() {
     const payload = buildExportPayload();
     if (!payload) return;
     const filename = downloadMarkdown(payload);
     onNotify?.(`Downloaded ${filename}`);
   }
+  */
 
   const tickPercent = Math.min(HOOK_WINDOW_SECONDS / (totalSeconds || 1), 1) * 100;
 
@@ -447,6 +454,7 @@ export function ScriptCard({
                 </a>
               )}
 
+              {/*
               <button
                 type="button"
                 className="btn btn-quiet btn-sm"
@@ -457,6 +465,7 @@ export function ScriptCard({
                 <IconDownload size={15} aria-hidden="true" />
                 <span>Download .md</span>
               </button>
+              */}
             </>
           )}
 
