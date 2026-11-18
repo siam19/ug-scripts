@@ -58,6 +58,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve public OAuth client configuration for frontend integrations
+         * @description Returns public OAuth configuration (Client ID only).
+         *     Never reads or exposes any OAuth client secret.
+         */
+        get: operations["get_auth_config_auth_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/demo-products": {
         parameters: {
             query?: never;
@@ -260,6 +281,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit or update a user rating, tags, and comment for a generated script
+         * @description Idempotently upserts explicit script feedback in Firestore `script_feedback/{log_id}_{script_index}`.
+         *     Uses merge=True so implicit signal counters on the same document are preserved.
+         */
+        post: operations["submit_feedback_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback/signal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record an implicit quality signal (copy, save, regenerate) for a generated script
+         * @description Atomically increments `signals.<signal>` on Firestore `script_feedback/{log_id}_{script_index}`
+         *     with merge=True, creating the document if no explicit rating exists yet.
+         */
+        post: operations["submit_feedback_signal_feedback_signal_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -334,6 +397,18 @@ export interface components {
              * @enum {string}
              */
             source: "model" | "user";
+        };
+        /**
+         * AuthConfigResponse
+         * @description Public OAuth configuration for frontend clients (never includes secrets).
+         */
+        AuthConfigResponse: {
+            /**
+             * Google Client Id
+             * @description Public Google OAuth2 Client ID for client-side Google Docs export
+             * @default
+             */
+            google_client_id: string;
         };
         /** Body_generate_generate_post */
         Body_generate_generate_post: {
@@ -853,6 +928,77 @@ export interface components {
             reasons: components["schemas"]["Reason"][];
         };
         /**
+         * ScriptFeedbackRequest
+         * @description Request model for POST /feedback.
+         */
+        ScriptFeedbackRequest: {
+            /**
+             * Log Id
+             * @description Generation log ID
+             */
+            log_id: string;
+            /**
+             * Script Index
+             * @description 0-based index of the script in the generation output
+             */
+            script_index: number;
+            /**
+             * Rating
+             * @description Thumbs down (-1) or thumbs up (1)
+             * @enum {integer}
+             */
+            rating: -1 | 1;
+            /**
+             * Tags
+             * @description Optional constrained feedback tags describing script quality
+             */
+            tags?: ("bland" | "sounds_like_an_ad" | "wrong_tone" | "too_long" | "weak_hook" | "unrealistic" | "wrong_language" | "great_hook")[];
+            /**
+             * Comment
+             * @description Optional user comment (max 500 characters)
+             */
+            comment?: string | null;
+            /** @description Snapshot of the rated script at feedback time */
+            script_snapshot: components["schemas"]["Script"];
+            /**
+             * Script Format
+             * @description Script format ('ugc' or 'commercial_30s')
+             */
+            script_format: string;
+            /**
+             * Language
+             * @description Script language ('en' or 'bn')
+             */
+            language: string;
+            /**
+             * Segment Name
+             * @description Target customer segment name
+             */
+            segment_name: string;
+        };
+        /**
+         * ScriptFeedbackResponse
+         * @description Response model for POST /feedback and POST /feedback/signal.
+         */
+        ScriptFeedbackResponse: {
+            /**
+             * Success
+             * @description Whether the feedback or signal was accepted
+             */
+            success: boolean;
+            /**
+             * Feedback Id
+             * @description Deterministic Firestore document ID ({log_id}_{script_index})
+             */
+            feedback_id: string;
+            /**
+             * Stored
+             * @description True if persisted to Firestore, False if running in offline fallback mode
+             * @default true
+             */
+            stored: boolean;
+        };
+        /**
          * ScriptLineContext
          * @description Contextual representation of a visible script line provided for narrative flow.
          */
@@ -925,6 +1071,28 @@ export interface components {
              * @enum {string}
              */
             script_format: "ugc" | "commercial_30s";
+        };
+        /**
+         * ScriptSignalRequest
+         * @description Request model for POST /feedback/signal.
+         */
+        ScriptSignalRequest: {
+            /**
+             * Log Id
+             * @description Generation log ID
+             */
+            log_id: string;
+            /**
+             * Script Index
+             * @description 0-based index of the script in the generation output
+             */
+            script_index: number;
+            /**
+             * Signal
+             * @description Implicit script quality signal
+             * @enum {string}
+             */
+            signal: "copy" | "save" | "regenerate";
         };
         /**
          * SectionRegenerateRequest
@@ -1238,6 +1406,26 @@ export interface operations {
             };
         };
     };
+    get_auth_config_auth_config_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthConfigResponse"];
+                };
+            };
+        };
+    };
     list_demo_products_demo_products_get: {
         parameters: {
             query?: never;
@@ -1533,6 +1721,78 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_feedback_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScriptFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScriptFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_feedback_signal_feedback_signal_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-API-Key"?: string | null;
+                "X-Access-Code"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScriptSignalRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScriptFeedbackResponse"];
                 };
             };
             /** @description Validation Error */

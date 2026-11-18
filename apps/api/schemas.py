@@ -567,3 +567,80 @@ class DemoProductsResponse(BaseModel):
     """Response model for GET /demo-products."""
     products: list[DemoProduct] = Field(default_factory=list, description="List of preset demo products")
 
+
+# ---------------------------------------------------------------------------
+# Sprint 7: OAuth Public Config & Script Ratings / Feedback Models
+# ---------------------------------------------------------------------------
+
+FEEDBACK_TAGS: tuple[str, ...] = (
+    "bland",
+    "sounds_like_an_ad",
+    "wrong_tone",
+    "too_long",
+    "weak_hook",
+    "unrealistic",
+    "wrong_language",
+    "great_hook",
+)
+
+FeedbackTag = Literal[
+    "bland",
+    "sounds_like_an_ad",
+    "wrong_tone",
+    "too_long",
+    "weak_hook",
+    "unrealistic",
+    "wrong_language",
+    "great_hook",
+]
+
+
+class AuthConfigResponse(BaseModel):
+    """Public OAuth configuration for frontend clients (never includes secrets)."""
+    google_client_id: str = Field(
+        default="",
+        description="Public Google OAuth2 Client ID for client-side Google Docs export",
+    )
+
+
+class ScriptFeedbackRequest(BaseModel):
+    """Request model for POST /feedback."""
+    log_id: str = Field(..., min_length=1, max_length=128, description="Generation log ID")
+    script_index: int = Field(..., ge=0, description="0-based index of the script in the generation output")
+    rating: Literal[-1, 1] = Field(..., description="Thumbs down (-1) or thumbs up (1)")
+    tags: list[FeedbackTag] = Field(
+        default_factory=list,
+        description="Optional constrained feedback tags describing script quality",
+    )
+    comment: str | None = Field(
+        default=None,
+        max_length=500,
+        description="Optional user comment (max 500 characters)",
+    )
+    script_snapshot: Script = Field(..., description="Snapshot of the rated script at feedback time")
+    script_format: str = Field(..., description="Script format ('ugc' or 'commercial_30s')")
+    language: str = Field(..., description="Script language ('en' or 'bn')")
+    segment_name: str = Field(..., description="Target customer segment name")
+
+    @field_validator("tags")
+    @classmethod
+    def deduplicate_tags(cls, v: list[FeedbackTag]) -> list[FeedbackTag]:
+        return list(dict.fromkeys(v))
+
+
+class ScriptFeedbackResponse(BaseModel):
+    """Response model for POST /feedback and POST /feedback/signal."""
+    success: bool = Field(..., description="Whether the feedback or signal was accepted")
+    feedback_id: str = Field(..., description="Deterministic Firestore document ID ({log_id}_{script_index})")
+    stored: bool = Field(
+        default=True,
+        description="True if persisted to Firestore, False if running in offline fallback mode",
+    )
+
+
+class ScriptSignalRequest(BaseModel):
+    """Request model for POST /feedback/signal."""
+    log_id: str = Field(..., min_length=1, max_length=128, description="Generation log ID")
+    script_index: int = Field(..., ge=0, description="0-based index of the script in the generation output")
+    signal: Literal["copy", "save", "regenerate"] = Field(..., description="Implicit script quality signal")
+

@@ -25,6 +25,7 @@ async def log_generation_task(
     request_payload: dict[str, Any] | None = None,
     response_payload: dict[str, Any] | None = None,
     usage: dict[str, int] | None = None,
+    log_id: str | None = None,
 ) -> None:
     """
     Executes in a FastAPI BackgroundTask after response delivery:
@@ -33,7 +34,7 @@ async def log_generation_task(
     3. Atomically increments token usage on 'access_codes/{access_code}'.
     """
     try:
-        log_id = str(uuid.uuid4())
+        log_id = log_id or str(uuid.uuid4())
         usage_data = usage or {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
         image_uri = demo_image_url or ""
 
