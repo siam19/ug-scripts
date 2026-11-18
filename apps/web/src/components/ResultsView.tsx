@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useId, useReducer, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { IconChevronRight } from '@tabler/icons-react';
-import type { LineKind, ProgressiveGenerateResponse, Segment } from 'api-types';
+import type {
+  Fact,
+  LineKind,
+  ProgressiveGenerateResponse,
+  ScriptFormat,
+  Segment,
+  SlotConfig,
+} from 'api-types';
+import { sendFeedbackSignal } from '../hooks/useFeedback';
 import { useRegenerate } from '../hooks/useRegenerate';
 import {
   factsHash,
@@ -21,6 +29,7 @@ import { generateUid } from '../state/uid';
 import { INITIAL_WORKSPACE, workspaceReducer } from '../state/workspace';
 import { FactChips } from './FactChips';
 import { AngleChips } from './AngleChips';
+import { BrandLogo } from './BrandLogo';
 import { ReasonList } from './ReasonList';
 import type { ReasonDisplayItem } from './ReasonList';
 import { ScriptCard } from './ScriptCard';
@@ -30,29 +39,41 @@ import { Collapse, StaleBar } from './StaleBar';
 import { ToastHost } from './ToastHost';
 import type { ToastItem } from './ToastHost';
 
-import type { ScriptFormat } from 'api-types';
-
 interface Props {
   data: ProgressiveGenerateResponse;
+  logId?: string | null;
   isStreaming?: boolean;
-  meta?: { name: string; market: string; language: 'en' | 'bn'; script_format?: ScriptFormat };
+  meta?: {
+    name: string;
+    category?: string;
+    market: string;
+    language: 'en' | 'bn';
+    script_format?: ScriptFormat;
+  };
 }
 
 export function ResultsView({
   data,
+  logId = null,
   isStreaming = false,
   meta = { name: 'Product', market: 'Global', language: 'en', script_format: 'ugc' },
 }: Props) {
   const uid = useId();
   const [workspace, dispatch] = useReducer(workspaceReducer, INITIAL_WORKSPACE);
   const { save, isSaved, remove: removeSaved } = useSavedScripts();
+  const [regenLogId, setRegenLogId] = useState<string | null>(null);
   const {
     regenerateSegment,
     rewriteReasonLines,
     rephraseLine,
     regenerateLine,
     rewriteScript,
-  } = useRegenerate(meta);
+    regenerateSectionStream,
+  } = useRegenerate({ ...meta, onLogId: setRegenLogId });
+  const activeLogId = regenLogId ?? logId ?? null;
+  const sectionAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => sectionAbortRef.current?.abort(), []);
 
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const segmentSectionRef = useRef<HTMLElement>(null);
@@ -133,7 +154,7 @@ export function ResultsView({
         },
       });
     }
-  }, [data.facts, data.segments, meta]);
+  }, [data.angles, data.facts, data.script_format, data.segments, meta]);
 
   // Feed streamed scripts progressively into workspace slots
   const ingestedScripts = useRef<Set<number>>(new Set());
@@ -553,13 +574,27 @@ export function ResultsView({
     }
     if (!skipRateLimitCheck) {
       recordRequest();
+      if (activeLogId) {
+        const slotIdx = workspace.slots.findIndex((s) => s.id === slotId);
+        if (slotIdx !== -1) {
+          void sendFeedbackSignal({
+            log_id: activeLogId,
+            script_index: slotIdx,
+            signal: 'regenerate',
+          });
+        }
+      }
     }
 
     setRewritingSlotIds((prev) => new Set([...prev, slotId]));
     dispatch({ type: 'REWRITE_SCRIPT_START', slotId });
     try {
       const factsList = workspace.facts.map((f) => f.text);
-      const newScript = await rewriteScript(segOverride || slot.segment, factsList);
+      const newScript = await rewriteScript(segOverride || slot.segment, factsList, {
+        angles: workspace.angles,
+        scriptFormat:
+          workspace.meta.script_format || meta.script_format || data.script_format || 'ugc',
+      });
       dispatch({ type: 'REWRITE_SCRIPT_SUCCESS', slotId, script: newScript });
       addToast('Script rewritten for current segment');
     } catch (err: unknown) {
@@ -586,11 +621,113 @@ export function ResultsView({
     const staleSlots = workspace.slots.filter((s) => slotNeedsRegen(workspace, s));
     if (staleSlots.length === 0) return;
 
+    sectionAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    sectionAbortRef.current = ctrl;
+
     setIsRegeneratingStale(true);
     recordRequest();
+
+    const currentFactsHash = factsHash(workspace.facts);
+    const slotsSnapshot = workspace.slots;
+    const slotConfigs: SlotConfig[] = slotsSnapshot.map((s, idx) => {
+      const keepSegment = s.edited || s.factsBasis === currentFactsHash;
+      return {
+        index: idx,
+        keep_segment: keepSegment,
+        segment: keepSegment ? s.segment : null,
+      };
+    });
+
+    if (activeLogId) {
+      slotsSnapshot.forEach((s, idx) => {
+        if (slotNeedsRegen(workspace, s)) {
+          void sendFeedbackSignal({
+            log_id: activeLogId,
+            script_index: idx,
+            signal: 'regenerate',
+          });
+        }
+      });
+    }
+
+    const factsPayload: Fact[] = workspace.facts.map((f, idx) => ({
+      id: f.factId ?? idx + 1,
+      text: f.text,
+      value: f.value ?? 'core',
+    }));
+
+    const completedIndices = new Set<number>();
+    setRewritingSlotIds(new Set(slotsSnapshot.map((s) => s.id)));
+    slotsSnapshot.forEach((s, idx) => {
+      if (!slotConfigs[idx]?.keep_segment) {
+        dispatch({ type: 'REPLACE_SEGMENT_START', slotId: s.id });
+      }
+      dispatch({ type: 'REWRITE_SCRIPT_START', slotId: s.id });
+    });
+
     try {
-      await Promise.all(staleSlots.map((s) => handleRewriteScript(s.id, undefined, true)));
+      await regenerateSectionStream(
+        {
+          facts: factsPayload,
+          angles: workspace.angles,
+          slots: slotConfigs,
+          script_format:
+            workspace.meta.script_format || meta.script_format || data.script_format || 'ugc',
+          signal: ctrl.signal,
+        },
+        {
+          onSegments: ({ segments }) => {
+            segments.forEach((seg, idx) => {
+              const targetSlot = slotsSnapshot[idx];
+              if (targetSlot && !slotConfigs[idx]?.keep_segment) {
+                dispatch({
+                  type: 'REPLACE_SEGMENT_SUCCESS',
+                  slotId: targetSlot.id,
+                  segment: seg,
+                });
+              }
+            });
+          },
+          onScript: (index, script) => {
+            completedIndices.add(index);
+            const targetSlot = slotsSnapshot[index];
+            if (targetSlot) {
+              dispatch({
+                type: 'REWRITE_SCRIPT_SUCCESS',
+                slotId: targetSlot.id,
+                script,
+              });
+              setRewritingSlotIds((prev) => {
+                const next = new Set(prev);
+                next.delete(targetSlot.id);
+                return next;
+              });
+            }
+          },
+          onDone: ({ logId: doneLogId }) => {
+            if (doneLogId) {
+              setRegenLogId(doneLogId);
+            }
+            addToast('Segments and scripts updated for revised facts');
+          },
+        },
+      );
+    } catch (err: unknown) {
+      slotsSnapshot.forEach((s, idx) => {
+        if (!slotConfigs[idx]?.keep_segment) {
+          dispatch({ type: 'REPLACE_SEGMENT_FAIL', slotId: s.id });
+        }
+        if (!completedIndices.has(idx)) {
+          dispatch({ type: 'REWRITE_SCRIPT_FAIL', slotId: s.id });
+        }
+      });
+      if (!(err instanceof DOMException && err.name === 'AbortError')) {
+        const msg = err instanceof Error ? err.message : 'Failed to regenerate sections';
+        addToast(msg, undefined, undefined, true);
+      }
     } finally {
+      setRewritingSlotIds(new Set());
       setIsRegeneratingStale(false);
     }
   }
@@ -605,6 +742,13 @@ export function ResultsView({
       return;
     }
     recordRequest();
+    if (activeLogId) {
+      void sendFeedbackSignal({
+        log_id: activeLogId,
+        script_index: currentSlotIndex,
+        signal: 'regenerate',
+      });
+    }
 
     dispatch({ type: 'SELECT_REASON', reasonUid });
     dispatch({ type: 'REWRITE_REASON_START', reasonUid });
@@ -707,6 +851,13 @@ export function ResultsView({
       return;
     }
     recordRequest();
+    if (activeLogId) {
+      void sendFeedbackSignal({
+        log_id: activeLogId,
+        script_index: currentSlotIndex,
+        signal: 'regenerate',
+      });
+    }
 
     dispatch({ type: 'REGENERATE_LINE_START', lineUid });
 
@@ -755,6 +906,14 @@ export function ResultsView({
       lines: linesToSave,
       reasons: reasonsToSave,
     });
+
+    if (activeLogId) {
+      void sendFeedbackSignal({
+        log_id: activeLogId,
+        script_index: currentSlotIndex,
+        signal: 'save',
+      });
+    }
 
     addToast(`Saved “${activeSlot.segment.name}” script`, () => removeSaved(saved.id), 'Undo');
   }
@@ -978,6 +1137,42 @@ export function ResultsView({
                     onPrev: () => handleCyclePersona(-1),
                     onNext: () => handleCyclePersona(1),
                   }}
+                  logId={activeLogId}
+                  scriptIndex={currentSlotIndex}
+                  exportContext={
+                    activeSlot
+                      ? {
+                          product: workspace.meta.name || meta.name || 'Product',
+                          category: meta.category,
+                          market: workspace.meta.market || meta.market || 'Global',
+                          language: workspace.meta.language || meta.language || 'en',
+                          scriptFormat:
+                            workspace.meta.script_format ||
+                            meta.script_format ||
+                            data.script_format ||
+                            'ugc',
+                          productAppearance: data.product_appearance,
+                          facts: workspace.facts.map((f) => f.text),
+                          angles: workspace.angles,
+                          segment: activeSlot.segment,
+                          reasons: reasonDisplayItems.map((r) => ({
+                            title: r.title,
+                            why: r.why,
+                            lines: r.refs.map((ref) => ref.no),
+                          })),
+                        }
+                      : undefined
+                  }
+                  onCopyScript={() => {
+                    if (activeLogId) {
+                      void sendFeedbackSignal({
+                        log_id: activeLogId,
+                        script_index: currentSlotIndex,
+                        signal: 'copy',
+                      });
+                    }
+                  }}
+                  onNotify={addToast}
                   onLineHover={setHoverLineUid}
                   onLineSelect={(lineUid) =>
                     lineUid
@@ -1030,7 +1225,7 @@ export function ResultsView({
             ) : isStreaming ? (
               <div className="panel script-skeleton-card">
                 <div className="script-skeleton-head">
-                  <span className="rec-dot" aria-hidden="true" />
+                  <BrandLogo size={22} pulse />
                   <h3>Writing script for {activeSlot?.segment?.name ?? 'segment'}…</h3>
                 </div>
                 <p className="hint">Crafting hook, timestamped lines, and psychological reasoning…</p>

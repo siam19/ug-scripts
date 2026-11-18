@@ -108,6 +108,28 @@
         }
       }
     },
+    "/auth/config": {
+      "get": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Retrieve public OAuth client configuration for frontend integrations",
+        "description": "Returns public OAuth configuration (Client ID only).\nNever reads or exposes any OAuth client secret.",
+        "operationId": "get_auth_config_auth_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/demo-products": {
       "get": {
         "tags": [
@@ -732,6 +754,158 @@
           }
         }
       }
+    },
+    "/feedback": {
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Submit or update a user rating, tags, and comment for a generated script",
+        "description": "Idempotently upserts explicit script feedback in Firestore `script_feedback/{log_id}_{script_index}`.\nUses merge=True so implicit signal counters on the same document are preserved.",
+        "operationId": "submit_feedback_feedback_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptFeedbackRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFeedbackResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/feedback/signal": {
+      "post": {
+        "tags": [
+          "Feedback"
+        ],
+        "summary": "Record an implicit quality signal (copy, save, regenerate) for a generated script",
+        "description": "Atomically increments `signals.<signal>` on Firestore `script_feedback/{log_id}_{script_index}`\nwith merge=True, creating the document if no explicit rating exists yet.",
+        "operationId": "submit_feedback_signal_feedback_signal_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          },
+          {
+            "name": "X-Access-Code",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Access-Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScriptSignalRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptFeedbackResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -843,6 +1017,19 @@
         ],
         "title": "Angle",
         "description": "A creative angle or framing direction for script ideation."
+      },
+      "AuthConfigResponse": {
+        "properties": {
+          "google_client_id": {
+            "type": "string",
+            "title": "Google Client Id",
+            "description": "Public Google OAuth2 Client ID for client-side Google Docs export",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AuthConfigResponse",
+        "description": "Public OAuth configuration for frontend clients (never includes secrets)."
       },
       "Body_generate_generate_post": {
         "properties": {
@@ -1645,6 +1832,121 @@
         "title": "Script",
         "description": "Complete ready-to-film short-form video ad script for a specific customer segment."
       },
+      "ScriptFeedbackRequest": {
+        "properties": {
+          "log_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Log Id",
+            "description": "Generation log ID"
+          },
+          "script_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Script Index",
+            "description": "0-based index of the script in the generation output"
+          },
+          "rating": {
+            "type": "integer",
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Rating",
+            "description": "Thumbs down (-1) or thumbs up (1)"
+          },
+          "tags": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "bland",
+                "sounds_like_an_ad",
+                "wrong_tone",
+                "too_long",
+                "weak_hook",
+                "unrealistic",
+                "wrong_language",
+                "great_hook"
+              ]
+            },
+            "type": "array",
+            "title": "Tags",
+            "description": "Optional constrained feedback tags describing script quality"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment",
+            "description": "Optional user comment (max 500 characters)"
+          },
+          "script_snapshot": {
+            "$ref": "#/components/schemas/Script",
+            "description": "Snapshot of the rated script at feedback time"
+          },
+          "script_format": {
+            "type": "string",
+            "title": "Script Format",
+            "description": "Script format ('ugc' or 'commercial_30s')"
+          },
+          "language": {
+            "type": "string",
+            "title": "Language",
+            "description": "Script language ('en' or 'bn')"
+          },
+          "segment_name": {
+            "type": "string",
+            "title": "Segment Name",
+            "description": "Target customer segment name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_id",
+          "script_index",
+          "rating",
+          "script_snapshot",
+          "script_format",
+          "language",
+          "segment_name"
+        ],
+        "title": "ScriptFeedbackRequest",
+        "description": "Request model for POST /feedback."
+      },
+      "ScriptFeedbackResponse": {
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "title": "Success",
+            "description": "Whether the feedback or signal was accepted"
+          },
+          "feedback_id": {
+            "type": "string",
+            "title": "Feedback Id",
+            "description": "Deterministic Firestore document ID ({log_id}_{script_index})"
+          },
+          "stored": {
+            "type": "boolean",
+            "title": "Stored",
+            "description": "True if persisted to Firestore, False if running in offline fallback mode",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "success",
+          "feedback_id"
+        ],
+        "title": "ScriptFeedbackResponse",
+        "description": "Response model for POST /feedback and POST /feedback/signal."
+      },
       "ScriptLineContext": {
         "properties": {
           "id": {
@@ -1758,6 +2060,41 @@
         ],
         "title": "ScriptRewriteRequest",
         "description": "Request model for POST /regenerate/script.\nRegenerates a complete script for a specific segment against active facts."
+      },
+      "ScriptSignalRequest": {
+        "properties": {
+          "log_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Log Id",
+            "description": "Generation log ID"
+          },
+          "script_index": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Script Index",
+            "description": "0-based index of the script in the generation output"
+          },
+          "signal": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "save",
+              "regenerate"
+            ],
+            "title": "Signal",
+            "description": "Implicit script quality signal"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_id",
+          "script_index",
+          "signal"
+        ],
+        "title": "ScriptSignalRequest",
+        "description": "Request model for POST /feedback/signal."
       },
       "SectionRegenerateRequest": {
         "properties": {

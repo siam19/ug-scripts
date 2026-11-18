@@ -1,6 +1,6 @@
 // apps/web/src/hooks/useGenerateScript.ts
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Angle, Fact, ProgressiveGenerateResponse, Script, Segment, TokenUsage } from 'api-types';
+import type { Angle, Fact, GenerateResponse, ProgressiveGenerateResponse, Script, Segment, TokenUsage } from 'api-types';
 import type { FormValues } from '../types/form';
 
 const API_URL: string = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
@@ -12,6 +12,13 @@ export type Status = 'idle' | 'loading' | 'streaming' | 'success' | 'error';
 export interface FriendlyError {
   title: string;
   message: string;
+}
+
+export interface GenerateOptions {
+  /** Use SSE streaming endpoint `/generate-stream` (default true) or JSON `/generate` when false. */
+  stream?: boolean;
+  /** Invoked as soon as `log_id` is captured from `X-Log-Id` or the SSE `done` event. */
+  onLogId?: (logId: string) => void;
 }
 
 interface SegmentsEvent {
@@ -32,6 +39,7 @@ interface ScriptEvent {
 interface DoneEvent {
   event: 'done';
   usage?: TokenUsage;
+  log_id?: string;
 }
 
 interface ErrorEvent {
@@ -83,6 +91,11 @@ function errorForStatus(status: number, detail?: string): FriendlyError {
           'Check that the name, category, description and market are filled in, and that the market is 60 characters or fewer.' +
           (detail ? ` Server says: ${detail}` : ''),
       };
+    case 429:
+      return {
+        title: 'Too many requests',
+        message: detail ?? 'Slow down. Too many requests in 1 minute. Try again later.',
+      };
     case 502:
     case 503:
     case 504:
@@ -103,13 +116,15 @@ export function useGenerateScript() {
   const [data, setData] = useState<ProgressiveGenerateResponse | null>(null);
   const [error, setError] = useState<FriendlyError | null>(null);
   const [runId, setRunId] = useState(0);
+  const [logId, setLogId] = useState<string | null>(null);
 
   const lastValues = useRef<FormValues | null>(null);
+  const lastOptions = useRef<GenerateOptions | undefined>(undefined);
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => () => controller.current?.abort(), []);
 
-  const generate = useCallback(async (values: FormValues) => {
+  const generate = useCallback(async (values: FormValues, options?: GenerateOptions) => {
     if (!values.image && !values.demoProductId) return;
 
     controller.current?.abort();
@@ -123,9 +138,12 @@ export function useGenerateScript() {
     }, TIMEOUT_MS);
 
     lastValues.current = values;
+    lastOptions.current = options;
+    const useStream = options?.stream ?? true;
     setStatus('loading');
     setError(null);
     setData(null);
+    setLogId(null);
     setRunId((n) => n + 1);
 
     // Let the browser set the multipart boundary: do not set Content-Type.
@@ -145,7 +163,7 @@ export function useGenerateScript() {
     try {
       const accessCode = localStorage.getItem('ug_access_code') || '';
       const headers: Record<string, string> = {
-        'Accept': 'text/event-stream',
+        'Accept': useStream ? 'text/event-stream' : 'application/json',
       };
       if (API_KEY) {
         headers['X-API-Key'] = API_KEY;
@@ -154,12 +172,29 @@ export function useGenerateScript() {
         headers['X-Access-Code'] = accessCode;
       }
 
-      const res = await fetch(`${API_URL}/generate-stream`, {
+      const endpoint = useStream ? '/generate-stream' : '/generate';
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers,
         body,
         signal: ctrl.signal,
       });
+
+      const headerLogId = res.headers.get('X-Log-Id');
+      if (headerLogId) {
+        setLogId(headerLogId);
+        options?.onLogId?.(headerLogId);
+      }
+
+      const tokenHeader = res.headers.get('X-Token-Usage');
+      if (tokenHeader) {
+        try {
+          const usage = JSON.parse(tokenHeader) as TokenUsage;
+          window.dispatchEvent(new CustomEvent('ug:token-usage', { detail: usage }));
+        } catch {
+          // Ignore parse failure
+        }
+      }
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -171,6 +206,21 @@ export function useGenerateScript() {
           .catch(() => undefined);
         setError(errorForStatus(res.status, detail));
         setStatus('error');
+        return;
+      }
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!useStream || contentType.includes('application/json')) {
+        const json = (await res.json()) as GenerateResponse;
+        setData({
+          facts: json.facts,
+          product_appearance: json.product_appearance,
+          angles: json.angles,
+          segments: json.segments,
+          scripts: json.scripts,
+          script_format: json.script_format,
+        });
+        setStatus('success');
         return;
       }
 
@@ -220,6 +270,10 @@ export function useGenerateScript() {
                 });
               } else if (payload.event === 'done') {
                 gotDone = true;
+                if (payload.log_id) {
+                  setLogId(payload.log_id);
+                  options?.onLogId?.(payload.log_id);
+                }
                 if (payload.usage) {
                   window.dispatchEvent(
                     new CustomEvent('ug:token-usage', { detail: payload.usage }),
@@ -254,7 +308,7 @@ export function useGenerateScript() {
   }, []);
 
   const retry = useCallback(() => {
-    if (lastValues.current) void generate(lastValues.current);
+    if (lastValues.current) void generate(lastValues.current, lastOptions.current);
   }, [generate]);
 
   const clearError = useCallback(() => {
@@ -262,5 +316,5 @@ export function useGenerateScript() {
     setStatus((s) => (s === 'error' ? 'idle' : s));
   }, []);
 
-  return { status, data, error, runId, generate, retry, clearError };
+  return { status, data, error, runId, logId, generate, retry, clearError };
 }

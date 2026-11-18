@@ -1,6 +1,11 @@
 // apps/web/src/components/TokenMeter.tsx
 import { useEffect, useId, useRef, useState } from 'react';
 import type { TokenTracker } from '../hooks/useTokenTracker';
+import {
+  GEMINI_FLASH_INPUT_USD_PER_1M,
+  GEMINI_FLASH_OUTPUT_USD_PER_1M,
+  USD_TO_BDT,
+} from '../state/pricing';
 
 interface Props {
   tracker: TokenTracker;
@@ -18,7 +23,7 @@ function MeterGlyph() {
 
 /**
  * Masthead usage pill. Click or Enter opens a small "receipt" with session and all-time totals,
- * plus an input/output split when the API reports one.
+ * estimated BDT/USD cost, plus an input/output split when the API reports one.
  */
 export function TokenMeter({ tracker }: Props) {
   const popId = useId();
@@ -45,9 +50,20 @@ export function TokenMeter({ tracker }: Props) {
     };
   }, [open]);
 
-  const { sessionTokens, lifetimeTokens, sessionInput, sessionOutput } = tracker;
+  const {
+    sessionTokens,
+    lifetimeTokens,
+    sessionInput,
+    sessionOutput,
+    formattedSession,
+    formattedSessionBdt,
+    formattedSessionUsd,
+    formattedLifetimeBdt,
+    formattedLifetimeUsd,
+  } = tracker;
   const split = sessionInput + sessionOutput;
   const inputPct = split > 0 ? Math.round((sessionInput / split) * 100) : 0;
+  const bdtPillText = sessionTokens > 0 ? `~${formattedSessionBdt}` : formattedSessionBdt;
 
   return (
     <div className="meter" ref={wrapRef}>
@@ -57,7 +73,7 @@ export function TokenMeter({ tracker }: Props) {
         className={`meter-btn${open ? ' is-open' : ''}`}
         aria-expanded={open}
         aria-controls={popId}
-        aria-label={`Token usage: ${sessionTokens.toLocaleString()} this session`}
+        aria-label={`Token usage: ${sessionTokens.toLocaleString()} tokens (${bdtPillText}) this session`}
         onClick={() => setOpen((o) => !o)}
       >
         <MeterGlyph />
@@ -67,13 +83,17 @@ export function TokenMeter({ tracker }: Props) {
           key={sessionTokens}
           className={`meter-value${sessionTokens > 0 ? ' is-tick' : ''}`}
         >
-          {tracker.formattedSession}
+          <span>{formattedSession}</span>
+          <span className="meter-cost-sep" aria-hidden="true">
+            ·
+          </span>
+          <span className="meter-cost">{bdtPillText}</span>
         </span>
       </button>
 
       {open && (
         <div className="meter-pop" id={popId} role="region" aria-label="Token usage">
-          <p className="meter-pop-title">Usage</p>
+          <p className="meter-pop-title">Usage &amp; Est. Cost</p>
 
           <dl className="meter-ledger">
             <div>
@@ -82,9 +102,27 @@ export function TokenMeter({ tracker }: Props) {
               <dd>{sessionTokens.toLocaleString()}</dd>
             </div>
             <div>
+              <dt>Est. cost (this session)</dt>
+              <dd className="meter-leader" aria-hidden="true" />
+              <dd>
+                {sessionTokens > 0 ? '~' : ''}
+                {formattedSessionBdt}{' '}
+                <span className="meter-usd-sub">({formattedSessionUsd})</span>
+              </dd>
+            </div>
+            <div>
               <dt>All time</dt>
               <dd className="meter-leader" aria-hidden="true" />
               <dd>{lifetimeTokens.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt>Est. cost (all time)</dt>
+              <dd className="meter-leader" aria-hidden="true" />
+              <dd>
+                {lifetimeTokens > 0 ? '~' : ''}
+                {formattedLifetimeBdt}{' '}
+                <span className="meter-usd-sub">({formattedLifetimeUsd})</span>
+              </dd>
             </div>
           </dl>
 
@@ -105,8 +143,9 @@ export function TokenMeter({ tracker }: Props) {
           )}
 
           <p className="meter-note">
-            Counted from the usage the API reports after each request. The all-time total is stored
-            in this browser.
+            Rough estimate based on Gemini Flash rates (${GEMINI_FLASH_INPUT_USD_PER_1M.toFixed(2)}
+            /1M input, ${GEMINI_FLASH_OUTPUT_USD_PER_1M.toFixed(2)}/1M output at ~৳{USD_TO_BDT}/USD).
+            All-time totals are stored in this browser.
           </p>
         </div>
       )}

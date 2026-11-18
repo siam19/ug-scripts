@@ -1,6 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { LineKind } from 'api-types';
-import { IconCheck, IconChevronLeft, IconChevronRight, IconCopy } from '@tabler/icons-react';
+import type { LineKind, Script } from 'api-types';
+import {
+  IconCheck,
+  IconChevronLeft,
+  IconChevronRight,
+  IconCopy,
+  IconDownload,
+  IconExternalLink,
+  IconFileText,
+  IconLoader2,
+} from '@tabler/icons-react';
+import { useGoogleDocsExport } from '../hooks/useGoogleDocsExport';
+import type { ExportScriptPayload, GoogleDocExportResult } from '../lib/googleDocs';
 import {
   countWords,
   formatTime,
@@ -9,6 +20,7 @@ import {
 } from '../state/script-tree';
 import type { ResolvedLineItem } from '../state/script-tree';
 import type { ScriptDoc, Uid } from '../state/types';
+import { FeedbackBar } from './FeedbackBar';
 import { LineTombstone, ScriptLine } from './ScriptLine';
 import type { LineView } from './ScriptLine';
 import { VersionRail } from './VersionRail';
@@ -49,6 +61,16 @@ interface Props {
   reasonFocused: boolean;
   recentlyChangedUids?: ReadonlySet<Uid>;
   personaInfo?: PersonaCyclerInfo;
+  logId?: string | null;
+  scriptIndex?: number;
+  exportContext?: Omit<ExportScriptPayload, 'lines'>;
+  onNotify?: (
+    message: string,
+    action?: () => void,
+    actionLabel?: string,
+    isError?: boolean,
+  ) => void;
+  onCopyScript?: () => void;
   onLineHover: (uid: Uid | null) => void;
   onLineSelect: (uid: Uid | null) => void;
   onEditLine: (uid: Uid, text: string) => void;
@@ -69,6 +91,11 @@ export function ScriptCard({
   reasonFocused,
   recentlyChangedUids = new Set(),
   personaInfo,
+  logId,
+  scriptIndex,
+  exportContext,
+  onNotify,
+  onCopyScript,
   onLineHover,
   onLineSelect,
   onEditLine,
@@ -83,6 +110,12 @@ export function ScriptCard({
   const copyTimer = useRef<number | null>(null);
   const cardRef = useRef<HTMLElement>(null);
   const [railTopY, setRailTopY] = useState<number | null>(null);
+  const { exporting, exportToDocs, downloadMarkdown } = useGoogleDocsExport();
+  const [lastExport, setLastExport] = useState<{
+    doc: ScriptDoc;
+    result: GoogleDocExportResult;
+  } | null>(null);
+  const exportedDoc = lastExport?.doc === doc ? lastExport.result : null;
 
   // Live draft map from typing in textareas
   const [drafts, setDrafts] = useState<Record<Uid, string>>({});
@@ -167,6 +200,38 @@ export function ScriptCard({
 
   const canDelete = lineViews.length > 1;
 
+  const scriptSnapshot: Script | null = useMemo(() => {
+    if (lineViews.length === 0) return null;
+    const segmentName = exportContext?.segment.name ?? personaInfo?.name ?? 'Segment';
+    const uidToNo = new Map(lineViews.map((v) => [v.uid, v.no]));
+    const activeRev = doc.revisions[doc.cursor];
+    const reasons = exportContext?.reasons
+      ? exportContext.reasons.map((r) => ({
+          title: r.title,
+          why: r.why,
+          line_ids: r.lines,
+        }))
+      : (activeRev?.reasons ?? []).map((r) => ({
+          title: r.title,
+          why: r.why,
+          line_ids: r.cites
+            .map((uid) => uidToNo.get(uid))
+            .filter((n): n is number => n !== undefined),
+        }));
+
+    return {
+      segment: segmentName,
+      lines: lineViews.map((v) => ({
+        id: v.no,
+        kind: v.kind,
+        text: v.text,
+        speaker: v.speaker ?? null,
+        visual: v.visual ?? null,
+      })),
+      reasons,
+    };
+  }, [doc, exportContext, lineViews, personaInfo]);
+
   // Dynamic vertical centering for VersionRail chevrons aligned with active selection
   useLayoutEffect(() => {
     const card = cardRef.current;
@@ -242,9 +307,51 @@ export function ScriptCard({
   async function handleCopy() {
     const text = lineViews.map((r) => r.text).join('\n\n');
     await copyToClipboard(text);
+    onCopyScript?.();
     setCopied(true);
     if (copyTimer.current) window.clearTimeout(copyTimer.current);
     copyTimer.current = window.setTimeout(() => setCopied(false), 2000);
+  }
+
+  function buildExportPayload(): ExportScriptPayload | null {
+    if (!exportContext || lineViews.length === 0) return null;
+    return {
+      ...exportContext,
+      lines: lineViews.map((v) => ({
+        no: v.no,
+        kind: v.kind,
+        time: v.time,
+        text: v.text,
+        visual: v.visual,
+        speaker: v.speaker,
+      })),
+    };
+  }
+
+  async function handleExportGoogleDocs() {
+    const payload = buildExportPayload();
+    if (!payload) return;
+    try {
+      const result = await exportToDocs(payload);
+      if (result) {
+        setLastExport({ doc, result });
+        onNotify?.(
+          'Exported to Google Docs',
+          () => window.open(result.url, '_blank', 'noopener,noreferrer'),
+          'Open Doc',
+        );
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to export to Google Docs.';
+      onNotify?.(msg, undefined, undefined, true);
+    }
+  }
+
+  function handleDownloadMarkdown() {
+    const payload = buildExportPayload();
+    if (!payload) return;
+    const filename = downloadMarkdown(payload);
+    onNotify?.(`Downloaded ${filename}`);
   }
 
   const tickPercent = Math.min(HOOK_WINDOW_SECONDS / (totalSeconds || 1), 1) * 100;
@@ -305,23 +412,72 @@ export function ScriptCard({
             About {Math.round(totalSeconds)} seconds spoken, {totalWords} words
           </p>
         </div>
-        <button
-          type="button"
-          className={`btn btn-quiet${copied ? ' is-done' : ''}`}
-          onClick={handleCopy}
-        >
-          {copied ? (
+        <div className="script-head-actions">
+          {exportContext && (
             <>
-              <IconCheck size={16} aria-hidden="true" />
-              <span>Copied!</span>
-            </>
-          ) : (
-            <>
-              <IconCopy size={16} aria-hidden="true" />
-              <span>Copy script</span>
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm"
+                disabled={Boolean(doc.pending) || lineViews.length === 0 || exporting}
+                onClick={handleExportGoogleDocs}
+                title="Export script to Google Docs"
+              >
+                {exporting ? (
+                  <>
+                    <IconLoader2 size={15} className="export-spinner" aria-hidden="true" />
+                    <span>Exporting…</span>
+                  </>
+                ) : (
+                  <>
+                    <IconFileText size={15} aria-hidden="true" />
+                    <span>Export to Google Docs</span>
+                  </>
+                )}
+              </button>
+
+              {exportedDoc && (
+                <a
+                  className="btn btn-quiet btn-sm is-done"
+                  href={exportedDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <IconExternalLink size={15} aria-hidden="true" />
+                  <span>Open Doc</span>
+                </a>
+              )}
+
+              <button
+                type="button"
+                className="btn btn-quiet btn-sm"
+                disabled={Boolean(doc.pending) || lineViews.length === 0}
+                onClick={handleDownloadMarkdown}
+                title="Download script as Markdown (.md)"
+              >
+                <IconDownload size={15} aria-hidden="true" />
+                <span>Download .md</span>
+              </button>
             </>
           )}
-        </button>
+
+          <button
+            type="button"
+            className={`btn btn-quiet btn-sm${copied ? ' is-done' : ''}`}
+            onClick={handleCopy}
+          >
+            {copied ? (
+              <>
+                <IconCheck size={15} aria-hidden="true" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <IconCopy size={15} aria-hidden="true" />
+                <span>Copy script</span>
+              </>
+            )}
+          </button>
+        </div>
       </header>
 
       <div className="timeline-wrap">
@@ -388,6 +544,17 @@ export function ScriptCard({
           );
         })}
       </ol>
+
+      {scriptSnapshot && scriptIndex !== undefined && (
+        <FeedbackBar
+          logId={logId}
+          scriptIndex={scriptIndex}
+          scriptSnapshot={scriptSnapshot}
+          scriptFormat={exportContext?.scriptFormat ?? 'ugc'}
+          language={exportContext?.language ?? 'en'}
+          segmentName={exportContext?.segment.name ?? personaInfo?.name ?? 'Segment'}
+        />
+      )}
     </article>
   );
 }
