@@ -1,0 +1,227 @@
+/* apps/web/src/components/FeedbackBar.css */
+
+.feedback-bar {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.feedback-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.feedback-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.feedback-prompt {
+  color: var(--ink-3);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.feedback-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cta-bg);
+  color: var(--cta);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.feedback-status.is-error {
+  background: var(--err-bg);
+  color: var(--err-ink);
+}
+
+.feedback-edit-link {
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.feedback-edit-link:hover {
+  color: var(--ink);
+  background: var(--tint);
+}
+
+.feedback-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.feedback-thumb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.14s, border-color 0.14s, color 0.14s;
+}
+
+.feedback-thumb-btn:hover {
+  border-color: var(--ink);
+  background: var(--tint);
+  color: var(--ink);
+}
+
+.feedback-thumb-btn.is-active-up {
+  background: var(--cta-bg);
+  border-color: var(--cta);
+  color: var(--cta);
+}
+
+.feedback-thumb-btn.is-active-down {
+  background: var(--hook-bg);
+  border-color: var(--hook);
+  color: var(--hook);
+}
+
+/* Expandable tags + comment drawer */
+.feedback-drawer {
+  margin-top: 12px;
+  padding: 14px;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.feedback-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.feedback-drawer-title {
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.feedback-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+}
+
+.feedback-close-btn:hover {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.feedback-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.feedback-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.feedback-tag:hover {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+.feedback-tag.is-selected {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.feedback-comment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.feedback-comment-input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+
+.feedback-comment-input::placeholder {
+  color: var(--ink-3);
+}
+
+.feedback-submit-btn {
+  flex: none;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  border-radius: 9px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: background-color 0.14s, border-color 0.14s;
+}
+
+.feedback-submit-btn:hover {
+  background: #2b3337;
+  border-color: #2b3337;
+}
+
+@media (max-width: 520px) {
+  .feedback-comment-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .feedback-submit-btn {
+    width: 100%;
+  }
+}
